@@ -1,14 +1,51 @@
-import React, { useCallback, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
-import { getRecentOrders, toApiError } from "@/api/client";
-import { Order } from "@/api/types";
+import { getCurrentProposal, getOrderOutcomes, getProposalsHistory, toApiError } from "@/api/client";
+import { OrderOutcome, Proposal, ProposalHistoryItem } from "@/api/types";
 import ErrorState from "@/components/ErrorState";
-import { dateTime, usd } from "@/utils/format";
+import { usd } from "@/utils/format";
 
-export default function HistoryScreen(): JSX.Element {
-  const [orders, setOrders] = useState<Order[]>([]);
+type Nav = {
+  navigate: (screen: "ProposalDetail", params: { proposalId: string }) => void;
+};
+
+type Section = { title: string; data: ProposalHistoryItem[] };
+
+function toDayLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const y = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const same = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  if (same(d, today)) return "Today";
+  if (same(d, y)) return "Yesterday";
+  return d.toLocaleDateString();
+}
+
+function statusBadge(status: string): string {
+  if (status === "pending") return "Active";
+  if (status === "executed" || status === "approved") return "Executed";
+  if (status === "expired") return "Expired";
+  if (status === "rejected") return "Rejected";
+  if (status === "blocked") return "Blocked";
+  return status;
+}
+
+function badgeColor(status: string): string {
+  if (status === "executed" || status === "approved") return "#166534";
+  if (status === "expired") return "#92400e";
+  if (status === "rejected" || status === "blocked") return "#991b1b";
+  return "#334155";
+}
+
+export default function HistoryScreen(): React.JSX.Element {
+  const navigation = useNavigation<Nav>();
+  const [activeProposal, setActiveProposal] = useState<Proposal | null>(null);
+  const [items, setItems] = useState<ProposalHistoryItem[]>([]);
+  const [outcomes, setOutcomes] = useState<Record<string, OrderOutcome>>({});
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,8 +53,14 @@ export default function HistoryScreen(): JSX.Element {
     setRefreshing(true);
     setError(null);
     try {
-      const data = await getRecentOrders();
-      setOrders(data);
+      const [history, current, outcomesData] = await Promise.all([
+        getProposalsHistory(80),
+        getCurrentProposal(),
+        getOrderOutcomes(),
+      ]);
+      setItems(history.items);
+      setActiveProposal(current);
+      setOutcomes(outcomesData);
     } catch (errorValue) {
       setError(toApiError(errorValue));
     } finally {
@@ -31,23 +74,68 @@ export default function HistoryScreen(): JSX.Element {
     }, [load])
   );
 
+  const activeId = activeProposal?.id ?? null;
+  const timelineItems = useMemo(() => items.filter((i) => i.id !== activeId), [items, activeId]);
+
+  const sections: Section[] = useMemo(() => {
+    const map = new Map<string, ProposalHistoryItem[]>();
+    for (const item of timelineItems) {
+      const label = toDayLabel(item.created_at);
+      const arr = map.get(label) ?? [];
+      arr.push(item);
+      map.set(label, arr);
+    }
+    return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
+  }, [timelineItems]);
+
+  const activeItem = useMemo(() => {
+    if (!activeProposal) return null;
+    return items.find((i) => i.id === activeProposal.id) ?? null;
+  }, [items, activeProposal]);
+
+  const renderRow = (item: ProposalHistoryItem) => {
+    const outcome = outcomes[item.id];
+    const pnl = outcome ? outcome.realized_pnl + outcome.unrealized_pnl : null;
+
+    return (
+      <Pressable key={item.id} style={styles.card} onPress={() => navigation.navigate("ProposalDetail", { proposalId: item.id })}>
+        <Text style={styles.symbol}>{item.side.toUpperCase()} {item.symbol}</Text>
+        <View style={styles.metaRow}>
+          <Text style={[styles.badge, { color: badgeColor(item.status) }]}>{statusBadge(item.status)}</Text>
+          <Text style={styles.strength}>{item.strength === "strong" ? "Strong" : item.strength === "medium" ? "Medium" : "Low"}</Text>
+        </View>
+
+        {item.status === "executed" || item.status === "approved" ? (
+          <Text style={[styles.line, pnl == null ? null : { color: pnl >= 0 ? "#166534" : "#b91c1c" }]}>
+            {pnl == null ? (item.order_summary?.filled_at ? "Filled" : "In progress") : `P/L ${usd(pnl)}`}
+          </Text>
+        ) : (
+          <Text style={styles.reason}>{item.reason ?? "No additional details."}</Text>
+        )}
+      </Pressable>
+    );
+  };
+
   return (
     <View style={styles.container}>
       {error ? <ErrorState message={error} onRetry={load} /> : null}
-      <FlatList
-        data={orders}
+
+      {activeItem ? (
+        <View style={styles.activeWrap}>
+          <Text style={styles.sectionHeader}>Active</Text>
+          {renderRow(activeItem)}
+        </View>
+      ) : null}
+
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<Text style={styles.empty}>No orders yet</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.title}>{item.symbol} • {item.status}</Text>
-            <Text style={styles.subtle}>Submitted: {dateTime(item.submitted_at)}</Text>
-            <Text style={styles.subtle}>Avg Fill: {item.avg_fill_price == null ? "-" : usd(item.avg_fill_price)}</Text>
-            <Text style={styles.subtle}>TP: {usd(item.take_profit_price)} | SL: {usd(item.stop_loss_price)}</Text>
-          </View>
-        )}
+        stickySectionHeadersEnabled={false}
+        ListEmptyComponent={<Text style={styles.empty}>No proposal history yet.</Text>}
+        renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
+        renderItem={({ item }) => renderRow(item)}
       />
     </View>
   );
@@ -55,9 +143,23 @@ export default function HistoryScreen(): JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-  list: { padding: 16, gap: 10 },
+  list: { padding: 16, gap: 8 },
   empty: { textAlign: "center", marginTop: 24, color: "#64748b" },
-  card: { backgroundColor: "white", borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", padding: 12, gap: 4 },
-  title: { fontWeight: "700", color: "#0f172a" },
-  subtle: { color: "#475569" },
+  activeWrap: { paddingHorizontal: 16, paddingTop: 12 },
+  sectionHeader: { color: "#0f172a", fontWeight: "800", fontSize: 16, marginBottom: 6 },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 12,
+    gap: 4,
+    marginBottom: 8,
+  },
+  symbol: { fontSize: 18, fontWeight: "800", color: "#111827" },
+  metaRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  badge: { fontWeight: "700" },
+  strength: { color: "#475569", fontWeight: "600" },
+  line: { color: "#334155" },
+  reason: { color: "#64748b" },
 });
