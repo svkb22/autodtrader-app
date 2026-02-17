@@ -55,6 +55,19 @@ export type ProposalEntry = {
   limit_price: number;
 };
 
+export type StockOverview = {
+  company_name: string | null;
+  last_price: number | null;
+  market_cap: number | null;
+  market_cap_segment: "Mega-cap" | "Large-cap" | "Mid-cap" | "Small-cap" | "Micro-cap" | null;
+  sector: string | null;
+  week52_low: number | null;
+  week52_high: number | null;
+  intraday_change_pct: number | null;
+  sparkline: number[];
+  read_more_url: string | null;
+};
+
 export type Proposal = {
   id: string;
   symbol: string;
@@ -69,6 +82,7 @@ export type Proposal = {
   capital_used_pct: number;
   daily_risk_remaining_usd: number;
   entry: ProposalEntry;
+  stock_overview?: StockOverview | null;
   event_risk_level?: "none" | "earnings" | "macro_high" | "macro_medium" | null;
   event_risk_reason?: string | null;
   blocked_reason?: string | null;

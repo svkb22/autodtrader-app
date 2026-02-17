@@ -1,33 +1,66 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, LayoutAnimation, Linking, Platform, Pressable, StyleSheet, Text, UIManager, View } from "react-native";
 
-import { approveProposal, getCurrentProposal, rejectProposal, toApiError } from "@/api/client";
-import { Proposal, ProposalDecisionResult } from "@/api/types";
+import { approveProposal, getBrokerAccount, getCurrentProposal, getOrderOutcomes, getProposalById, rejectProposal, toApiError } from "@/api/client";
+import { BrokerAccount, OrderOutcome, Proposal, ProposalDecisionResult } from "@/api/types";
 import Countdown from "@/components/Countdown";
-import ProposalCard from "@/components/ProposalCard";
+import MiniSparkline from "@/components/MiniSparkline";
+import { signedPct, usd, usdCompact } from "@/utils/format";
 import { isExpired } from "@/utils/time";
 
 type Props = {
   route?: { params?: { proposalId?: string } };
 };
 
-export default function ProposalScreen({ route }: Props): JSX.Element {
+function pnlColor(value: number): string {
+  if (value > 0) return "#166534";
+  if (value < 0) return "#b91c1c";
+  return "#475569";
+}
+
+function recommendationText(strength: Proposal["strength"]): string {
+  if (strength === "strong") return "Strong";
+  if (strength === "medium") return "Moderate";
+  return "Watch";
+}
+
+export default function ProposalScreen({ route }: Props): React.JSX.Element {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [result, setResult] = useState<ProposalDecisionResult | null>(null);
+  const [outcome, setOutcome] = useState<OrderOutcome | null>(null);
+  const [brokerAccount, setBrokerAccount] = useState<BrokerAccount | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [overviewOpen, setOverviewOpen] = useState<boolean>(false);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chevronAnim = useRef(new Animated.Value(0)).current;
 
-  const load = useCallback(async () => {
-    try {
-      const current = await getCurrentProposal();
-      setProposal(current);
-    } catch (error) {
-      Alert.alert("Load failed", toApiError(error));
+  useEffect(() => {
+    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
 
+  const load = useCallback(async () => {
+    try {
+      const proposalId = route?.params?.proposalId;
+      const current = proposalId ? await getProposalById(proposalId) : await getCurrentProposal();
+      setProposal(current);
+      const account = await getBrokerAccount();
+      setBrokerAccount(account);
+    } catch (error) {
+      Alert.alert("Load failed", toApiError(error));
+    }
+  }, [route?.params?.proposalId]);
+
   useEffect(() => {
     load();
-  }, [load, route?.params?.proposalId]);
+    return () => {
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
+  }, [load]);
 
   const canAct = useMemo(() => {
     if (!proposal) return false;
@@ -35,19 +68,26 @@ export default function ProposalScreen({ route }: Props): JSX.Element {
     return !isExpired(proposal.expires_at);
   }, [proposal]);
 
-  const onApprove = async () => {
+  const onApprove = useCallback(async () => {
     if (!proposal) return;
     try {
       setLoading(true);
       const response = await approveProposal(proposal.id);
       setResult(response);
+      if (response.order) {
+        const allOutcomes = await getOrderOutcomes();
+        setOutcome(allOutcomes[response.order.id] ?? null);
+      } else {
+        setOutcome(null);
+      }
       await load();
     } catch (error) {
       Alert.alert("Approve failed", toApiError(error));
     } finally {
       setLoading(false);
+      setHoldProgress(0);
     }
-  };
+  }, [load, proposal]);
 
   const onReject = async () => {
     if (!proposal) return;
@@ -55,12 +95,53 @@ export default function ProposalScreen({ route }: Props): JSX.Element {
       setLoading(true);
       const response = await rejectProposal(proposal.id);
       setResult(response);
+      setOutcome(null);
       await load();
     } catch (error) {
       Alert.alert("Reject failed", toApiError(error));
     } finally {
       setLoading(false);
+      setHoldProgress(0);
     }
+  };
+
+  const onApprovePressIn = () => {
+    if (!canAct || loading) return;
+    setHoldProgress(0);
+    const start = Date.now();
+    progressIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - start;
+      setHoldProgress(Math.min(1, elapsed / 700));
+    }, 16);
+    holdTimerRef.current = setTimeout(() => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      onApprove();
+    }, 700);
+  };
+
+  const onApprovePressOut = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (!loading) {
+      setHoldProgress(0);
+    }
+  };
+
+  const toggleOverview = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const to = overviewOpen ? 0 : 1;
+    setOverviewOpen((v) => !v);
+    Animated.timing(chevronAnim, {
+      toValue: to,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
   };
 
   if (!proposal) {
@@ -71,20 +152,103 @@ export default function ProposalScreen({ route }: Props): JSX.Element {
     );
   }
 
+  const notional = proposal.entry.limit_price * proposal.qty;
+  const riskUsd = notional * proposal.stop_loss_pct;
+  const targetUsd = notional * proposal.take_profit_pct;
+
   return (
     <View style={styles.container}>
-      <ProposalCard proposal={proposal} />
-      <Text style={styles.label}>Expires In</Text>
-      <Countdown expiresAtISO={proposal.expires_at} onExpire={load} />
-      {!canAct ? <Text style={styles.statusText}>Status: {proposal.status === "pending" ? "expired" : proposal.status}</Text> : null}
+      <View style={styles.card}>
+        <Text style={styles.side}>BUY {proposal.symbol}</Text>
+        <Text style={styles.reco}>Recommendation: {recommendationText(proposal.strength)}</Text>
 
-      <View style={styles.row}>
-        <Pressable style={[styles.button, !canAct && styles.disabled]} disabled={!canAct || loading} onPress={onApprove}>
-          <Text style={styles.buttonText}>Approve</Text>
+        <Text style={styles.bigText}>Risk {usd(riskUsd)} • Target {usd(targetUsd)}</Text>
+        <Text style={styles.subtle}>Reward/Risk 2.0x</Text>
+
+        <View style={styles.whyBox}>
+          <Text style={styles.whyTitle}>Why</Text>
+          {proposal.rationale.slice(0, 3).map((line) => (
+            <Text key={line} style={styles.whyLine}>• {line}</Text>
+          ))}
+        </View>
+
+        <Text style={styles.meta}>Entry: limit {usd(proposal.entry.limit_price)} • Qty {proposal.qty}</Text>
+        <Text style={styles.meta}>Capital Used: {(proposal.capital_used_pct * 100).toFixed(2)}%</Text>
+        <Text style={styles.meta}>Daily Risk Remaining: {usd(proposal.daily_risk_remaining_usd)}</Text>
+        <Text style={styles.meta}>Buying Power: {brokerAccount ? usd(Number(brokerAccount.buying_power || 0)) : "N/A"}</Text>
+
+        <Text style={styles.label}>Expires In</Text>
+        <Countdown expiresAtISO={proposal.expires_at} onExpire={load} />
+        {!canAct ? <Text style={styles.statusText}>Status: {proposal.status === "pending" ? "expired" : proposal.status}</Text> : null}
+
+        <Pressable
+          style={[styles.holdButton, (!canAct || loading) && styles.disabled]}
+          disabled={!canAct || loading}
+          onPressIn={onApprovePressIn}
+          onPressOut={onApprovePressOut}
+        >
+          <View style={[styles.holdProgress, { width: `${holdProgress * 100}%` }]} />
+          <Text style={styles.buttonText}>Press and hold to approve</Text>
         </Pressable>
-        <Pressable style={[styles.rejectButton, !canAct && styles.disabled]} disabled={!canAct || loading} onPress={onReject}>
+
+        <Pressable style={[styles.rejectButton, (!canAct || loading) && styles.disabled]} disabled={!canAct || loading} onPress={onReject}>
           <Text style={styles.buttonText}>Reject</Text>
         </Pressable>
+
+        <View style={styles.overviewWrap}>
+          <Pressable style={styles.overviewHeader} onPress={toggleOverview}>
+            <View>
+              <Text style={styles.overviewTitle}>Stock Overview</Text>
+              <Text style={styles.overviewSubtle}>
+                {proposal.stock_overview?.last_price != null ? usd(proposal.stock_overview.last_price) : "Price unavailable"}
+                {proposal.stock_overview?.market_cap_segment ? ` • ${proposal.stock_overview.market_cap_segment}` : ""}
+              </Text>
+            </View>
+            <Animated.Text
+              style={[
+                styles.chevron,
+                {
+                  transform: [
+                    {
+                      rotate: chevronAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ["0deg", "90deg"],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              ›
+            </Animated.Text>
+          </Pressable>
+
+          {overviewOpen ? (
+            <View style={styles.overviewBody}>
+              <Text style={styles.overviewLine}>Company: {proposal.stock_overview?.company_name ?? proposal.symbol}</Text>
+              <Text style={styles.overviewLine}>Current Price: {proposal.stock_overview?.last_price != null ? usd(proposal.stock_overview.last_price) : "-"}</Text>
+              <Text style={styles.overviewLine}>
+                Market Cap: {proposal.stock_overview?.market_cap != null ? usdCompact(proposal.stock_overview.market_cap) : "-"}
+                {proposal.stock_overview?.market_cap_segment ? ` (${proposal.stock_overview.market_cap_segment})` : ""}
+              </Text>
+              <Text style={styles.overviewLine}>Sector: {proposal.stock_overview?.sector ?? "-"}</Text>
+              <Text style={styles.overviewLine}>
+                52W Range: {proposal.stock_overview?.week52_low != null ? usd(proposal.stock_overview.week52_low) : "-"} -{" "}
+                {proposal.stock_overview?.week52_high != null ? usd(proposal.stock_overview.week52_high) : "-"}
+              </Text>
+              <Text style={styles.overviewMuted}>
+                Intraday:{" "}
+                {proposal.stock_overview?.intraday_change_pct != null ? signedPct(proposal.stock_overview.intraday_change_pct) : "-"}
+              </Text>
+              <MiniSparkline data={proposal.stock_overview?.sparkline ?? []} />
+              {proposal.stock_overview?.read_more_url ? (
+                <Pressable onPress={() => Linking.openURL(proposal.stock_overview!.read_more_url!)}>
+                  <Text style={styles.readMore}>Read more</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
       </View>
 
       {result ? (
@@ -96,6 +260,16 @@ export default function ProposalScreen({ route }: Props): JSX.Element {
               Order {result.order.symbol} • {result.order.status} • TP {result.order.take_profit_price} • SL {result.order.stop_loss_price}
             </Text>
           ) : null}
+
+          {outcome ? (
+            <View style={styles.outcomeBox}>
+              <Text style={styles.resultTitle}>Outcome</Text>
+              <Text>Entry Notional: {usd(outcome.entry_notional)}</Text>
+              <Text style={{ color: pnlColor(outcome.unrealized_pnl) }}>Unrealized P/L: {usd(outcome.unrealized_pnl)}</Text>
+              <Text style={{ color: pnlColor(outcome.realized_pnl) }}>Realized P/L: {usd(outcome.realized_pnl)}</Text>
+              <Text>State: {outcome.state}</Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -105,25 +279,59 @@ export default function ProposalScreen({ route }: Props): JSX.Element {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, gap: 12, backgroundColor: "#f8fafc" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  label: { color: "#334155", fontWeight: "600" },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    borderColor: "#e2e8f0",
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+  },
+  side: { color: "#0f172a", fontSize: 28, fontWeight: "800" },
+  reco: { color: "#334155", fontWeight: "700" },
+  bigText: { color: "#111827", fontSize: 20, fontWeight: "800" },
+  subtle: { color: "#64748b" },
+  whyBox: { backgroundColor: "#f8fafc", borderRadius: 10, padding: 10, gap: 4 },
+  whyTitle: { color: "#0f172a", fontWeight: "700" },
+  whyLine: { color: "#334155" },
+  meta: { color: "#1f2937", fontWeight: "600" },
+  label: { color: "#334155", fontWeight: "600", marginTop: 2 },
   statusText: { color: "#b91c1c", fontWeight: "700" },
-  row: { flexDirection: "row", gap: 10 },
-  button: {
-    flex: 1,
-    backgroundColor: "#166534",
+  holdButton: {
+    marginTop: 8,
+    height: 52,
     borderRadius: 10,
-    paddingVertical: 12,
+    backgroundColor: "#166534",
     alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  holdProgress: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "#22c55e",
   },
   rejectButton: {
-    flex: 1,
-    backgroundColor: "#b91c1c",
+    height: 48,
     borderRadius: 10,
-    paddingVertical: 12,
+    backgroundColor: "#b91c1c",
     alignItems: "center",
+    justifyContent: "center",
   },
-  buttonText: { color: "white", fontWeight: "700" },
+  buttonText: { color: "white", fontWeight: "700", zIndex: 1 },
   disabled: { opacity: 0.5 },
   result: { backgroundColor: "white", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, padding: 12, gap: 6 },
   resultTitle: { fontWeight: "700" },
+  outcomeBox: { marginTop: 8, borderTopWidth: 1, borderTopColor: "#e2e8f0", paddingTop: 8, gap: 4 },
+  overviewWrap: { marginTop: 10, borderTopWidth: 1, borderTopColor: "#e2e8f0", paddingTop: 10, gap: 8 },
+  overviewHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  overviewTitle: { color: "#0f172a", fontWeight: "700" },
+  overviewSubtle: { color: "#64748b", fontSize: 12, marginTop: 2 },
+  chevron: { color: "#64748b", fontSize: 20, fontWeight: "700" },
+  overviewBody: { gap: 6, backgroundColor: "#f8fafc", borderRadius: 10, padding: 10 },
+  overviewLine: { color: "#334155", fontSize: 13 },
+  overviewMuted: { color: "#64748b", fontSize: 12 },
+  readMore: { color: "#2563eb", fontWeight: "600", marginTop: 2 },
 });
