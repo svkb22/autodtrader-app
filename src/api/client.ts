@@ -70,6 +70,8 @@ let mockRisk: RiskProfile = {
   risk_per_trade_usd: 45,
   max_trades_per_day: 1,
   max_notional_pct: 0.2,
+  capital_limit_mode: "pct",
+  capital_limit_value: 1.0,
   kill_switch_enabled: false,
   proposals_per_day_cap: 3,
   cooldown_minutes: 15,

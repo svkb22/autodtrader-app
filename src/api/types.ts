@@ -28,6 +28,8 @@ export type RiskProfile = {
   risk_per_trade_usd: number;
   max_trades_per_day: number;
   max_notional_pct: number;
+  capital_limit_mode: "pct" | "usd";
+  capital_limit_value: number;
   kill_switch_enabled: boolean;
   proposals_per_day_cap: number;
   cooldown_minutes: number;
