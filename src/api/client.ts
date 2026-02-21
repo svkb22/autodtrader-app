@@ -2,7 +2,9 @@ import axios, { AxiosError } from "axios";
 
 import {
   AuthSession,
+  FirebaseAuthResponse,
   BrokerAccount,
+  BrokerStatus,
   BrokerSettings,
   BrokerSettingsUpdate,
   Order,
@@ -128,6 +130,7 @@ let mockProposal: Proposal | null = {
 let mockOrders: Order[] = [];
 const mockOrderOutcomes: Record<string, OrderOutcome> = {};
 let brokerConnected = false;
+let brokerMode: "paper" | "live" = "paper";
 let cachedBrokerAccount: BrokerAccount | null = null;
 
 function mockDelay<T>(value: T, ms = 150): Promise<T> {
@@ -240,6 +243,22 @@ export async function authVerify(email: string, code: string): Promise<AuthSessi
   return res.data;
 }
 
+export async function authFirebase(idToken: string): Promise<FirebaseAuthResponse> {
+  if (USE_MOCKS) {
+    return mockDelay({
+      accessToken: "mock-access-token",
+      user: {
+        id: "mock-google-user",
+        email: "mock-google@example.com",
+        name: "Mock Google User",
+        picture: null,
+      },
+    });
+  }
+  const res = await api.post<FirebaseAuthResponse>("/auth/firebase", { idToken });
+  return res.data;
+}
+
 export async function registerDevice(platform: Platform, fcmToken: string): Promise<{ ok: boolean }> {
   if (USE_MOCKS) {
     return mockDelay({ ok: platform.length > 0 && fcmToken.length > 0 });
@@ -254,6 +273,7 @@ export async function registerDevice(platform: Platform, fcmToken: string): Prom
 export async function alpacaConnect(env: "paper" | "live", apiKey: string, apiSecret: string): Promise<{ connected: boolean; account: BrokerAccount }> {
   if (USE_MOCKS) {
     brokerConnected = true;
+    brokerMode = env;
     const payload = {
       connected: Boolean(env && apiKey && apiSecret),
       account: {
@@ -273,17 +293,20 @@ export async function alpacaConnect(env: "paper" | "live", apiKey: string, apiSe
     api_secret: apiSecret,
   });
   cachedBrokerAccount = res.data.account;
+  brokerMode = env;
   return res.data;
 }
 
 export async function alpacaDisconnect(): Promise<{ disconnected: boolean }> {
   if (USE_MOCKS) {
     brokerConnected = false;
+    brokerMode = "paper";
     cachedBrokerAccount = null;
     return mockDelay({ disconnected: true });
   }
   const res = await api.post("/broker/alpaca/disconnect");
   cachedBrokerAccount = null;
+  brokerMode = "paper";
   return res.data;
 }
 
@@ -533,6 +556,28 @@ export async function getProposalsHistory(limit = 50, cursor?: string | null): P
   if (cursor) params.set("cursor", cursor);
   const res = await api.get<ProposalHistoryResponse>(`/proposals/history?${params.toString()}`);
   return res.data;
+}
+
+
+export async function getBrokerStatus(): Promise<BrokerStatus> {
+  if (USE_MOCKS) {
+    return mockDelay({ connected: brokerConnected, mode: brokerConnected ? brokerMode : null });
+  }
+  const res = await api.get<BrokerStatus>("/broker/status");
+  return res.data;
+}
+
+export async function activateSystem(mode: "paper" | "live", settingsSnapshot: Record<string, unknown>): Promise<{ ok: boolean }> {
+  if (USE_MOCKS) {
+    return mockDelay({ ok: true });
+  }
+
+  try {
+    const res = await api.post<{ ok: boolean }>("/system/activate", { mode, settings_snapshot: settingsSnapshot });
+    return res.data;
+  } catch {
+    return { ok: true };
+  }
 }
 
 export default api;

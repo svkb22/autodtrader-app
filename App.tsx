@@ -4,21 +4,31 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
 import Loading from "@/components/Loading";
 import RootNavigator from "@/navigation/RootNavigator";
+import { OnboardingProvider, useOnboarding } from "@/onboarding/OnboardingContext";
 
-function AppShell(): JSX.Element {
+function AppShell(): React.JSX.Element {
   const { loading } = useAuth();
-  if (loading) {
+  const { ready } = useOnboarding();
+  if (loading || !ready) {
     return <Loading />;
   }
   return <RootNavigator />;
 }
 
-export default function App(): JSX.Element {
+function Providers(): React.JSX.Element {
+  return (
+    <AuthProvider>
+      <OnboardingProvider>
+        <AppShell />
+      </OnboardingProvider>
+    </AuthProvider>
+  );
+}
+
+export default function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <AppShell />
-      </AuthProvider>
+      <Providers />
     </SafeAreaProvider>
   );
 }

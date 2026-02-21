@@ -5,12 +5,29 @@ export type AuthSession = {
   user_id: string;
 };
 
+export type AuthUser = {
+  id: string;
+  email: string;
+  name?: string | null;
+  picture?: string | null;
+};
+
+export type FirebaseAuthResponse = {
+  accessToken: string;
+  user: AuthUser;
+};
+
 export type BrokerAccount = {
   id: string;
   equity: string;
   buying_power: string;
   status: string;
   currency: string;
+};
+
+export type BrokerStatus = {
+  connected: boolean;
+  mode: "paper" | "live" | null;
 };
 
 export type AutoExecuteStrength = "strong_only" | "strong_medium" | "all";

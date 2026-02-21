@@ -2,10 +2,12 @@ import React, { useEffect } from "react";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 
-import { registerDevice, toApiError } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
-import { initNotificationTapHandler, registerForPushNotificationsAsync } from "@/notifications/notifications";
+import OnboardingNavigator from "@/navigation/OnboardingNavigator";
+import { initNotificationTapHandler } from "@/notifications/notifications";
+import { useOnboarding } from "@/onboarding/OnboardingContext";
 import AutoExecuteSettingsScreen from "@/screens/AutoExecuteSettingsScreen";
 import ConnectBrokerScreen from "@/screens/ConnectBrokerScreen";
 import HistoryScreen from "@/screens/HistoryScreen";
@@ -33,9 +35,33 @@ export const navigationRef = createNavigationContainerRef<AppStackParamList>();
 function AppTabs(): React.JSX.Element {
   return (
     <Tabs.Navigator>
-      <Tabs.Screen name="Home" component={HomeScreen} />
-      <Tabs.Screen name="History" component={HistoryScreen} />
-      <Tabs.Screen name="Settings" component={SettingsScreen} />
+      <Tabs.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "home" : "home-outline"} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "document-text" : "document-text-outline"} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "settings" : "settings-outline"} size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs.Navigator>
   );
 }
@@ -63,10 +89,11 @@ function AuthNavigator(): React.JSX.Element {
 
 export default function RootNavigator(): React.JSX.Element {
   const { isAuthed } = useAuth();
+  const { completed } = useOnboarding();
 
   useEffect(() => {
     const disposeTap = initNotificationTapHandler((proposalId?: string) => {
-      if (!isAuthed) return;
+      if (!isAuthed || !completed) return;
       if (navigationRef.isReady()) {
         navigationRef.navigate("Proposal", proposalId ? { proposalId } : undefined);
       }
@@ -75,20 +102,11 @@ export default function RootNavigator(): React.JSX.Element {
     return () => {
       disposeTap();
     };
-  }, [isAuthed]);
+  }, [completed, isAuthed]);
 
-  useEffect(() => {
-    if (!isAuthed) return;
-
-    registerForPushNotificationsAsync()
-      .then((token) => {
-        if (!token) return;
-        return registerDevice("ios", token);
-      })
-      .catch((error) => {
-        console.warn("Push registration failed", toApiError(error));
-      });
-  }, [isAuthed]);
-
-  return <NavigationContainer ref={navigationRef}>{isAuthed ? <AppStackNavigator /> : <AuthNavigator />}</NavigationContainer>;
+  return (
+    <NavigationContainer ref={navigationRef}>
+      {!isAuthed ? <AuthNavigator /> : completed ? <AppStackNavigator /> : <OnboardingNavigator />}
+    </NavigationContainer>
+  );
 }
