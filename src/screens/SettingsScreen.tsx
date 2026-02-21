@@ -1,40 +1,90 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import React, { useState } from "react";
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { NavigationProp, ParamListBase, useNavigation } from "@react-navigation/native";
 
-type Nav = {
-  navigate: (screen: "ConnectBroker" | "RiskSettings" | "AutoExecuteSettings") => void;
-};
+import { useAuth } from "@/auth/AuthContext";
 
 export default function SettingsScreen(): React.JSX.Element {
-  const navigation = useNavigation<Nav>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
+  const { signOut } = useAuth();
+  const [loggingOut, setLoggingOut] = useState<boolean>(false);
+
+  const performLogout = async () => {
+    try {
+      setLoggingOut(true);
+      await signOut();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
+  const onLogout = () => {
+    if (Platform.OS === "web") {
+      const accepted = typeof window !== "undefined" ? window.confirm("Are you sure you want to log out?") : true;
+      if (accepted) {
+        void performLogout();
+      }
+      return;
+    }
+
+    Alert.alert("Log out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log out",
+        style: "destructive",
+        onPress: () => void performLogout(),
+      },
+    ]);
+  };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Settings</Text>
-      <Pressable style={styles.item} onPress={() => navigation.navigate("ConnectBroker")}>
-        <Text style={styles.itemText}>Broker Connection</Text>
+
+      <Text style={styles.sectionLabel}>Broker</Text>
+      <Pressable style={styles.cardButton} onPress={() => navigation.navigate("Brokers")}>
+        <View>
+          <Text style={styles.cardTitle}>Brokers</Text>
+          <Text style={styles.cardSubtitle}>Active connections, add new, and manage broker-level settings.</Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
       </Pressable>
-      <Pressable style={styles.item} onPress={() => navigation.navigate("RiskSettings")}>
-        <Text style={styles.itemText}>Risk Settings</Text>
-      </Pressable>
-      <Pressable style={styles.item} onPress={() => navigation.navigate("AutoExecuteSettings")}>
-        <Text style={styles.itemText}>Auto Execution</Text>
+
+      <Text style={styles.sectionLabel}>Account</Text>
+      <Pressable style={[styles.logoutButton, loggingOut && styles.disabled]} onPress={onLogout} disabled={loggingOut}>
+        <Text style={styles.logoutText}>{loggingOut ? "Logging out..." : "Log Out"}</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc", padding: 16, gap: 10 },
-  title: { fontSize: 24, fontWeight: "800", color: "#0f172a", marginBottom: 6 },
-  item: {
-    backgroundColor: "white",
+  container: { flex: 1, backgroundColor: "#f8fafc", padding: 16, gap: 12 },
+  title: { fontSize: 24, fontWeight: "800", color: "#0f172a", marginBottom: 4 },
+  sectionLabel: { color: "#334155", fontWeight: "600" },
+  cardButton: {
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    backgroundColor: "white",
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
-  itemText: { color: "#0f172a", fontWeight: "700" },
+  cardTitle: { color: "#0f172a", fontWeight: "700", fontSize: 16 },
+  cardSubtitle: { color: "#64748b", marginTop: 3, fontSize: 13 },
+  chevron: { color: "#94a3b8", fontSize: 22, lineHeight: 22 },
+  logoutButton: {
+    marginTop: 2,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  logoutText: { color: "#b91c1c", fontWeight: "700" },
+  disabled: { opacity: 0.6 },
 });

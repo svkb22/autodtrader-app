@@ -8,8 +8,14 @@ import { useAuth } from "@/auth/AuthContext";
 import OnboardingNavigator from "@/navigation/OnboardingNavigator";
 import { initNotificationTapHandler } from "@/notifications/notifications";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
+import AuthLandingScreen from "@/screens/AuthLandingScreen";
 import AutoExecuteSettingsScreen from "@/screens/AutoExecuteSettingsScreen";
+import BrokerDetailScreen from "@/screens/BrokerDetailScreen";
+import BrokersScreen from "@/screens/BrokersScreen";
+import ConnectAlpacaScreen from "@/screens/ConnectAlpacaScreen";
 import ConnectBrokerScreen from "@/screens/ConnectBrokerScreen";
+import EmailAuthScreen from "@/screens/EmailAuthScreen";
+import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import HistoryScreen from "@/screens/HistoryScreen";
 import HomeScreen from "@/screens/HomeScreen";
 import LoginScreen from "@/screens/LoginScreen";
@@ -17,6 +23,7 @@ import ProposalDetailScreen from "@/screens/ProposalDetailScreen";
 import ProposalScreen from "@/screens/ProposalScreen";
 import RiskSettingsScreen from "@/screens/RiskSettingsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import VerifyEmailScreen from "@/screens/VerifyEmailScreen";
 
 export type AppStackParamList = {
   Tabs: undefined;
@@ -27,10 +34,30 @@ export type AppStackParamList = {
   ProposalDetail: { proposalId: string };
 };
 
+type SettingsStackParamList = {
+  SettingsHome: undefined;
+  Brokers: undefined;
+  BrokerDetail: undefined;
+  ConnectAlpaca: undefined;
+};
+
 const Stack = createNativeStackNavigator<AppStackParamList>();
 const AuthStack = createNativeStackNavigator();
+const VerifyStack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
+const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
 export const navigationRef = createNavigationContainerRef<AppStackParamList>();
+
+function SettingsStackNavigator(): React.JSX.Element {
+  return (
+    <SettingsStack.Navigator>
+      <SettingsStack.Screen name="SettingsHome" component={SettingsScreen} options={{ headerShown: false }} />
+      <SettingsStack.Screen name="Brokers" component={BrokersScreen} options={{ title: "Brokers" }} />
+      <SettingsStack.Screen name="BrokerDetail" component={BrokerDetailScreen} options={{ title: "Alpaca" }} />
+      <SettingsStack.Screen name="ConnectAlpaca" component={ConnectAlpacaScreen} options={{ title: "Connect Alpaca" }} />
+    </SettingsStack.Navigator>
+  );
+}
 
 function AppTabs(): React.JSX.Element {
   return (
@@ -55,8 +82,9 @@ function AppTabs(): React.JSX.Element {
       />
       <Tabs.Screen
         name="Settings"
-        component={SettingsScreen}
+        component={SettingsStackNavigator}
         options={{
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? "settings" : "settings-outline"} size={size} color={color} />
           ),
@@ -82,18 +110,29 @@ function AppStackNavigator(): React.JSX.Element {
 function AuthNavigator(): React.JSX.Element {
   return (
     <AuthStack.Navigator>
-      <AuthStack.Screen name="Login" component={LoginScreen} options={{ title: "Login" }} />
+      <AuthStack.Screen name="AuthLanding" component={AuthLandingScreen} options={{ title: "Sign In" }} />
+      <AuthStack.Screen name="EmailAuth" component={EmailAuthScreen} options={{ title: "Email" }} />
+      <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: "Reset Password" }} />
+      <AuthStack.Screen name="LegacyLogin" component={LoginScreen} options={{ title: "Default Login" }} />
     </AuthStack.Navigator>
   );
 }
 
+function UnverifiedNavigator(): React.JSX.Element {
+  return (
+    <VerifyStack.Navigator>
+      <VerifyStack.Screen name="VerifyEmail" component={VerifyEmailScreen} options={{ headerShown: false }} />
+    </VerifyStack.Navigator>
+  );
+}
+
 export default function RootNavigator(): React.JSX.Element {
-  const { isAuthed } = useAuth();
+  const { authState } = useAuth();
   const { completed } = useOnboarding();
 
   useEffect(() => {
     const disposeTap = initNotificationTapHandler((proposalId?: string) => {
-      if (!isAuthed || !completed) return;
+      if (authState !== "signedIn_verified" || !completed) return;
       if (navigationRef.isReady()) {
         navigationRef.navigate("Proposal", proposalId ? { proposalId } : undefined);
       }
@@ -102,11 +141,11 @@ export default function RootNavigator(): React.JSX.Element {
     return () => {
       disposeTap();
     };
-  }, [completed, isAuthed]);
+  }, [authState, completed]);
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {!isAuthed ? <AuthNavigator /> : completed ? <AppStackNavigator /> : <OnboardingNavigator />}
+      {authState === "signedOut" ? <AuthNavigator /> : authState === "signedIn_unverified" ? <UnverifiedNavigator /> : completed ? <AppStackNavigator /> : <OnboardingNavigator />}
     </NavigationContainer>
   );
 }
