@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
 import { toApiError } from "@/api/client";
+import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 
 type Props = {
@@ -79,6 +80,7 @@ export default function BrokersScreen({ navigation }: Props): React.JSX.Element 
       </View>
 
       <Pressable style={styles.card} accessibilityLabel="Alpaca broker" onPress={() => navigation.navigate("BrokerDetail")}>
+        <AlpacaLogoBadge size={44} />
         <View style={[styles.statusDot, anyConnected ? styles.dotGreen : styles.dotGray]} />
         <View style={styles.info}>
           <Text style={styles.name}>Alpaca</Text>

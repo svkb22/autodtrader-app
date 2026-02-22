@@ -4,6 +4,7 @@ import { NavigationProp, ParamListBase, useFocusEffect, useNavigation } from "@r
 
 import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
 import { toApiError } from "@/api/client";
+import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 
 type Props = {
@@ -66,8 +67,13 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <Text style={styles.title}>Alpaca</Text>
-      <Text style={styles.subtitle}>Stocks-only connection and controls.</Text>
+      <View style={styles.headerRow}>
+        <AlpacaLogoBadge size={52} />
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.title}>Alpaca</Text>
+          <Text style={styles.subtitle}>Stocks-only connection and controls.</Text>
+        </View>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Connection</Text>
@@ -104,6 +110,8 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   content: { padding: 16, gap: 12 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerTextWrap: { flex: 1 },
   title: { fontSize: 24, fontWeight: "700", color: "#0f172a" },
   subtitle: { color: "#475569", fontSize: 14 },
   card: {
