@@ -41,6 +41,23 @@ function badgeColor(status: string): string {
   return "#334155";
 }
 
+const sampleCards = [
+  {
+    id: "sample-1",
+    title: "BUY AAPL",
+    status: "Executed",
+    strength: "Strong",
+    line: "P/L +$24.80",
+  },
+  {
+    id: "sample-2",
+    title: "BUY NVDA",
+    status: "Expired",
+    strength: "Strong",
+    line: "Expired - no action taken",
+  },
+] as const;
+
 export default function HistoryScreen(): React.JSX.Element {
   const navigation = useNavigation<Nav>();
   const [activeProposal, setActiveProposal] = useState<Proposal | null>(null);
@@ -116,6 +133,25 @@ export default function HistoryScreen(): React.JSX.Element {
     );
   };
 
+  const renderSampleCards = () => (
+    <View style={styles.samplesWrap}>
+      <Text style={styles.samplesHeader}>Samples</Text>
+      {sampleCards.map((sample) => (
+        <View key={sample.id} style={[styles.card, styles.sampleCard]}>
+          <View style={styles.sampleHeaderRow}>
+            <Text style={styles.symbol}>{sample.title}</Text>
+            <Text style={styles.sampleTag}>Sample</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Text style={[styles.badge, { color: "#64748b" }]}>{sample.status}</Text>
+            <Text style={styles.strength}>{sample.strength}</Text>
+          </View>
+          <Text style={styles.reason}>{sample.line}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       {error ? <ErrorState message={error} onRetry={load} /> : null}
@@ -133,7 +169,12 @@ export default function HistoryScreen(): React.JSX.Element {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
         contentContainerStyle={styles.list}
         stickySectionHeadersEnabled={false}
-        ListEmptyComponent={<Text style={styles.empty}>No proposal history yet.</Text>}
+        ListEmptyComponent={
+          <View>
+            <Text style={styles.empty}>No activity yet.</Text>
+            {renderSampleCards()}
+          </View>
+        }
         renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
         renderItem={({ item }) => renderRow(item)}
       />
@@ -144,7 +185,7 @@ export default function HistoryScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   list: { padding: 16, gap: 8 },
-  empty: { textAlign: "center", marginTop: 24, color: "#64748b" },
+  empty: { textAlign: "center", marginTop: 24, color: "#64748b", marginBottom: 12 },
   activeWrap: { paddingHorizontal: 16, paddingTop: 12 },
   sectionHeader: { color: "#0f172a", fontWeight: "800", fontSize: 16, marginBottom: 6 },
   card: {
@@ -156,6 +197,23 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: 8,
   },
+  sampleCard: {
+    backgroundColor: "#f1f5f9",
+    borderColor: "#cbd5e1",
+  },
+  sampleHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sampleTag: {
+    fontSize: 11,
+    color: "#475569",
+    borderWidth: 1,
+    borderColor: "#94a3b8",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: "hidden",
+  },
+  samplesWrap: { marginTop: 4 },
+  samplesHeader: { color: "#334155", fontWeight: "700", marginBottom: 6 },
   symbol: { fontSize: 18, fontWeight: "800", color: "#111827" },
   metaRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   badge: { fontWeight: "700" },

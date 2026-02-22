@@ -4,11 +4,21 @@ iOS-first React Native client for the Auto Day-Trader MVP.
 
 ## Auth in this build
 
-- Google Sign-In with Expo AuthSession
-- Firebase Authentication session creation
+- Google Sign-In (Expo AuthSession + Firebase Auth)
+- Email/password Sign Up + Sign In (Firebase Auth)
+- Email verification hard gate for email/password users
+- Forgot password flow via Firebase reset email
 - Backend exchange via `POST /auth/firebase` to get app JWT
 - Secure app JWT storage with `expo-secure-store`
-- Legacy OTP + Quick Login still available for interim testing
+- Legacy OTP + Quick Login still available via **Use Default Login**
+
+## Auth routing gate
+
+- `signedOut` -> Auth stack (`AuthLanding`, `EmailAuth`, `ForgotPassword`, `LegacyLogin`)
+- `signedIn_unverified` -> `VerifyEmailScreen` (hard gate)
+- `signedIn_verified` -> app flow (Onboarding or Main tabs)
+
+Google users are treated as verified. Email/password users must verify before proceeding.
 
 ## Onboarding flow (post-login)
 
@@ -29,32 +39,11 @@ Completion is persisted in AsyncStorage with:
 - `onboarding.completed_at`
 - `onboarding.activation_mode`
 
-On next launch, completed users go directly to Home tabs.
-
-## Analytics events emitted
-
-- `onboarding_started`
-- `onboarding_step_viewed`
-- `onboarding_step_completed`
-- `broker_connect_started`
-- `broker_connect_success`
-- `broker_connect_failed`
-- `risk_saved`
-- `notifications_permission_prompted`
-- `notifications_permission_result`
-- `onboarding_activated`
-- `onboarding_completed`
-
-## Backend endpoints used by onboarding
-
-- `GET /risk`
-- `PUT /risk`
-- `GET /broker/status` (new client usage)
-- `POST /system/activate` (client falls back safely if endpoint unavailable)
-
 ## Environment
 
 Set these in `/Users/sathvik/autodtrader-app/.env`:
+
+- `EXPO_PUBLIC_ENABLE_LIVE_BROKER=false` (default; only Paper shown)
 
 - `EXPO_PUBLIC_API_URL=https://<your-backend>`
 - `EXPO_PUBLIC_FIREBASE_API_KEY=...`
@@ -74,13 +63,27 @@ Optional dev fallback:
 - `EXPO_PUBLIC_ALPACA_USERNAME=...`
 - `EXPO_PUBLIC_ALPACA_PASSWORD=...`
 
-## Firebase setup
+## Firebase Console setup
 
 1. Create a Firebase project.
 2. Enable **Authentication -> Sign-in method -> Google**.
-3. Register app/web OAuth clients and collect client IDs.
-4. In Firebase project settings, copy the web config values and set the `EXPO_PUBLIC_FIREBASE_*` vars above.
-5. Set `EXPO_PUBLIC_GOOGLE_*_CLIENT_ID` values from Google/Firebase OAuth client credentials.
+3. Enable **Authentication -> Sign-in method -> Email/Password**.
+4. Configure OAuth consent screen and Google client IDs used by Expo.
+5. In Firebase project settings, copy config values and set `EXPO_PUBLIC_FIREBASE_*` vars.
+6. Set `EXPO_PUBLIC_GOOGLE_*_CLIENT_ID` values from Google/Firebase OAuth credentials.
+7. Optional: customize Auth email templates and configure email action links/continue URL.
+
+## Broker OAuth endpoints used
+
+- `GET /broker/status`
+- `POST /broker/alpaca/oauth/start`
+- `POST /broker/alpaca/oauth/callback`
+- `POST /agreements/stocks`
+
+## Backend endpoint used by auth exchange
+
+- `POST /auth/firebase` with Firebase ID token
+- response `{ accessToken, user }` stored as app session
 
 ## Run locally
 
@@ -90,20 +93,12 @@ npm install
 npm run start -- --clear
 ```
 
-Then open in iOS simulator or Expo Go.
-
-## iOS build and submit
-
-```bash
-eas build -p ios --profile production
-eas submit -p ios
-```
-
 ## Important files
 
-- App config: `/Users/sathvik/autodtrader-app/app.config.ts`
 - Root routing: `/Users/sathvik/autodtrader-app/src/navigation/RootNavigator.tsx`
-- Onboarding stack: `/Users/sathvik/autodtrader-app/src/navigation/OnboardingNavigator.tsx`
-- Onboarding state: `/Users/sathvik/autodtrader-app/src/onboarding/OnboardingContext.tsx`
-- Login screen: `/Users/sathvik/autodtrader-app/src/screens/LoginScreen.tsx`
-- API client: `/Users/sathvik/autodtrader-app/src/api/client.ts`
+- Auth context: `/Users/sathvik/autodtrader-app/src/auth/AuthContext.tsx`
+- Firebase init: `/Users/sathvik/autodtrader-app/src/auth/firebase.ts`
+- Auth landing: `/Users/sathvik/autodtrader-app/src/screens/AuthLandingScreen.tsx`
+- Email auth: `/Users/sathvik/autodtrader-app/src/screens/EmailAuthScreen.tsx`
+- Verify gate: `/Users/sathvik/autodtrader-app/src/screens/VerifyEmailScreen.tsx`
+- Forgot password: `/Users/sathvik/autodtrader-app/src/screens/ForgotPasswordScreen.tsx`

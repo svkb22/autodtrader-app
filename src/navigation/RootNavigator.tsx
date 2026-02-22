@@ -16,7 +16,7 @@ import ConnectAlpacaScreen from "@/screens/ConnectAlpacaScreen";
 import ConnectBrokerScreen from "@/screens/ConnectBrokerScreen";
 import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
-import HistoryScreen from "@/screens/HistoryScreen";
+import ActivityScreen from "@/screens/ActivityScreen";
 import HomeScreen from "@/screens/HomeScreen";
 import LoginScreen from "@/screens/LoginScreen";
 import ProposalDetailScreen from "@/screens/ProposalDetailScreen";
@@ -72,9 +72,11 @@ function AppTabs(): React.JSX.Element {
         }}
       />
       <Tabs.Screen
-        name="History"
-        component={HistoryScreen}
+        name="Activity"
+        component={ActivityScreen}
         options={{
+          title: "Activity",
+          tabBarLabel: "Activity",
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? "document-text" : "document-text-outline"} size={size} color={color} />
           ),

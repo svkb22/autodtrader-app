@@ -8,7 +8,7 @@ type Props = {
   onExpire?: () => void;
 };
 
-export default function Countdown({ expiresAtISO, onExpire }: Props): JSX.Element {
+export default function Countdown({ expiresAtISO, onExpire }: Props): React.JSX.Element {
   const [remainingMs, setRemainingMs] = useState<number>(() => getRemainingMs(expiresAtISO));
 
   useEffect(() => {

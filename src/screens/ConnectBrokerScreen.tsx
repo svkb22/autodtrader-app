@@ -1,22 +1,22 @@
 import React, { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { alpacaConnect, toApiError } from "@/api/client";
+import { alpacaConnectWithCredentials, toApiError } from "@/api/client";
 
 type Props = {
   navigation: { navigate: (route: "RiskSettings") => void };
 };
 
-export default function ConnectBrokerScreen({ navigation }: Props): JSX.Element {
+export default function ConnectBrokerScreen({ navigation }: Props): React.JSX.Element {
   const [env, setEnv] = useState<"paper" | "live">("paper");
-  const [apiKey, setApiKey] = useState<string>("");
-  const [apiSecret, setApiSecret] = useState<string>("");
+  const [username, setUsername] = useState<string>("placeholder");
+  const [password, setPassword] = useState<string>("placeholder");
   const [loading, setLoading] = useState<boolean>(false);
 
   const onConnect = async () => {
     try {
       setLoading(true);
-      await alpacaConnect(env, apiKey.trim(), apiSecret.trim());
+      await alpacaConnectWithCredentials(env, username.trim(), password.trim());
       Alert.alert("Connected", `Alpaca ${env} connected.`);
       navigation.navigate("RiskSettings");
     } catch (error) {
@@ -38,10 +38,12 @@ export default function ConnectBrokerScreen({ navigation }: Props): JSX.Element 
         </Pressable>
       </View>
 
-      <TextInput style={styles.input} placeholder="Alpaca API Key" value={apiKey} onChangeText={setApiKey} autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="Alpaca API Secret" value={apiSecret} onChangeText={setApiSecret} autoCapitalize="none" secureTextEntry />
+      <Text style={styles.hint}>Sign in with Alpaca credentials</Text>
+      <TextInput style={styles.input} placeholder="Alpaca Username / Email" value={username} onChangeText={setUsername} autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="Alpaca Password" value={password} onChangeText={setPassword} autoCapitalize="none" secureTextEntry />
+      <Text style={styles.subtle}>Tip: backend env keys are used when configured. Placeholder values are okay for MVP.</Text>
 
-      <Pressable style={styles.button} onPress={onConnect} disabled={loading || !apiKey || !apiSecret}>
+      <Pressable style={styles.button} onPress={onConnect} disabled={loading || !username.trim() || !password.trim()}>
         <Text style={styles.buttonText}>Connect Broker</Text>
       </Pressable>
     </View>
@@ -64,6 +66,7 @@ const styles = StyleSheet.create({
   activePill: { backgroundColor: "#0f172a", borderColor: "#0f172a" },
   pillText: { color: "#334155", fontWeight: "600" },
   activePillText: { color: "white" },
+  hint: { color: "#475569", fontSize: 12 },
   input: {
     borderWidth: 1,
     borderColor: "#cbd5e1",
@@ -79,4 +82,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonText: { color: "white", fontWeight: "700" },
+  subtle: { color: "#64748b", fontSize: 12 },
 });

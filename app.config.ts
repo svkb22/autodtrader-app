@@ -9,10 +9,16 @@ const config: ExpoConfig = {
   ios: {
     bundleIdentifier: "com.yourorg.autodtrader",
     supportsTablet: false,
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+    },
   },
   plugins: ["expo-notifications"],
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
+    eas: {
+      projectId: "8da9e7f6-1111-415b-a1b7-79644152cb32",
+    },
   },
 };
 

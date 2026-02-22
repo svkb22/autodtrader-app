@@ -6,7 +6,7 @@ type Props = {
   onRetry?: () => void;
 };
 
-export default function ErrorState({ message, onRetry }: Props): JSX.Element {
+export default function ErrorState({ message, onRetry }: Props): React.JSX.Element {
   return (
     <View style={styles.wrap}>
       <Text style={styles.text}>{message}</Text>

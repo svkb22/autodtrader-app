@@ -5,6 +5,8 @@ import * as Notifications from "expo-notifications";
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
   }),
@@ -33,9 +35,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     return null;
   }
 
-  const projectId =
-    Constants.expoConfig?.extra?.eas?.projectId ??
-    Constants.easConfig?.projectId;
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
 
   const token = projectId
     ? await Notifications.getExpoPushTokenAsync({ projectId })
@@ -44,11 +44,11 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   return token.data;
 }
 
-export function initNotificationTapHandler(onTradeProposalTap: (proposalId?: string) => void): () => void {
+export function initNotificationTapHandler(onProposalTap: (proposalId?: string) => void): () => void {
   const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data as NotificationData;
-    if (data.type === "trade_proposal") {
-      onTradeProposalTap(data.proposal_id);
+    if (data.type === "trade_proposal" || data.type === "trade_auto_executed") {
+      onProposalTap(data.proposal_id);
     }
   });
 

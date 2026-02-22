@@ -191,3 +191,34 @@ export type ProposalDecisionResult = {
   message: string;
   order: Order | null;
 };
+
+export type ActivityStatus = "executed" | "expired" | "rejected" | "blocked";
+export type ActivityRange = "1w" | "1m" | "all";
+
+export type ActivityItem = {
+  id: string;
+  symbol: string;
+  side: "long" | "short";
+  status: ActivityStatus;
+  reason?: string;
+  created_at: string;
+  decided_at?: string;
+  expires_at?: string;
+  risk_used_usd?: number;
+  pnl_total?: number;
+  approved_mode?: "manual" | "auto";
+  blocked_reason?: string;
+  rejected_by?: string;
+  entry_price?: number | null;
+  stop_loss_price?: number | null;
+  take_profit_price?: number | null;
+  filled_avg_price?: number | null;
+  filled_at?: string | null;
+  order_status?: string | null;
+  rationale?: string[];
+};
+
+export type ActivityResponse = {
+  items: ActivityItem[];
+  next_cursor?: string | null;
+};
