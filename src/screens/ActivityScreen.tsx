@@ -31,6 +31,68 @@ const rangeFilters: Array<{ key: ActivityRange; label: string }> = [
   { key: "all", label: "All" },
 ];
 
+const SHOW_SAMPLE_PREVIEW = true;
+
+const sampleCards: ActivityItem[] = [
+  {
+    id: "sample-executed",
+    symbol: "AAPL",
+    side: "long",
+    status: "executed",
+    created_at: new Date().toISOString(),
+    decided_at: new Date().toISOString(),
+    risk_used_usd: 85,
+    pnl_total: 42.1,
+    approved_mode: "manual",
+    reason: "Filled and closed",
+    entry_price: 190.2,
+    stop_loss_price: 188.7,
+    take_profit_price: 193.6,
+    filled_avg_price: 190.35,
+    order_status: "filled",
+  },
+  {
+    id: "sample-expired",
+    symbol: "NVDA",
+    side: "long",
+    status: "expired",
+    created_at: new Date(Date.now() - 86_400_000).toISOString(),
+    expires_at: new Date(Date.now() - 86_280_000).toISOString(),
+    risk_used_usd: 70,
+    approved_mode: "manual",
+    reason: "Approval window ended",
+  },
+  {
+    id: "sample-rejected",
+    symbol: "MSFT",
+    side: "long",
+    status: "rejected",
+    created_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+    decided_at: new Date(Date.now() - 2 * 86_340_000).toISOString(),
+    risk_used_usd: 60,
+    approved_mode: "manual",
+    reason: "You declined",
+    rejected_by: "user",
+    entry_price: 412.3,
+    stop_loss_price: 409.9,
+    take_profit_price: 417.1,
+  },
+  {
+    id: "sample-blocked",
+    symbol: "AMD",
+    side: "long",
+    status: "blocked",
+    created_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+    risk_used_usd: 50,
+    approved_mode: "auto",
+    reason: "Daily loss cap reached",
+    blocked_reason: "daily_loss_cap",
+    entry_price: 168.2,
+    stop_loss_price: 166.9,
+    take_profit_price: 170.8,
+  },
+];
+
 function statusColor(status: ActivityStatus): string {
   if (status === "executed") return "#166534";
   if (status === "expired") return "#475569";
@@ -157,6 +219,44 @@ export default function ActivityScreen(): React.JSX.Element {
     );
   };
 
+  const renderSamplePreview = () => {
+    if (!SHOW_SAMPLE_PREVIEW) return null;
+    const visibleSamples = sampleCards.filter((item) => (status === "all" ? true : item.status === status));
+
+    return (
+      <View style={styles.sampleSection}>
+        <Text style={styles.sampleSectionTitle}>Sample Preview</Text>
+        {visibleSamples.map((item) => {
+          const summary = summaryLine(item);
+          const isPnl = item.status === "executed" && typeof item.pnl_total === "number";
+          return (
+            <Pressable key={item.id} style={[styles.card, styles.sampleCard]} onPress={() => setSelected(item)}>
+              <View style={styles.rowBetween}>
+                <Text style={styles.row1}>{`${item.symbol} - ${item.side === "long" ? "Long" : "Short"}`}</Text>
+                <View style={styles.sampleTag}>
+                  <Text style={styles.sampleTagText}>Sample</Text>
+                </View>
+              </View>
+
+              <View style={styles.rowBetween}>
+                <View style={[styles.statusChip, { borderColor: "#94a3b8" }]}>
+                  <Text style={[styles.statusChipText, { color: "#64748b" }]}>{statusLabel(item.status)}</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.row2, isPnl ? { color: (item.pnl_total ?? 0) >= 0 ? "#166534" : "#b91c1c" } : null]}>{summary}</Text>
+              <View style={styles.rowBetween}>
+                <Text style={styles.row3}>{formatDateCompact(item.created_at)}</Text>
+                <Text style={styles.row3}>{`Risk ${typeof item.risk_used_usd === "number" ? usd(item.risk_used_usd) : "-"}`}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+        {visibleSamples.length === 0 ? <Text style={styles.sampleEmpty}>No sample cards for this filter.</Text> : null}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.filtersWrap}>
@@ -202,7 +302,12 @@ export default function ActivityScreen(): React.JSX.Element {
         onEndReached={() => {
           void onEndReached();
         }}
-        ListFooterComponent={loadingMore ? <Text style={styles.loadingMore}>Loading more...</Text> : null}
+        ListFooterComponent={
+          <View>
+            {loadingMore ? <Text style={styles.loadingMore}>Loading more...</Text> : null}
+            {renderSamplePreview()}
+          </View>
+        }
       />
 
       <Modal transparent visible={selected != null} animationType="slide" onRequestClose={() => setSelected(null)}>
@@ -312,6 +417,19 @@ const styles = StyleSheet.create({
   statusChipText: { fontSize: 11, fontWeight: "700" },
   emptyText: { textAlign: "center", color: "#64748b", marginTop: 28, fontSize: 14 },
   loadingMore: { textAlign: "center", color: "#64748b", paddingVertical: 8 },
+  sampleSection: { paddingTop: 6, gap: 8 },
+  sampleSectionTitle: { color: "#64748b", fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
+  sampleEmpty: { color: "#94a3b8", fontSize: 12 },
+  sampleCard: { backgroundColor: "#f1f5f9", borderColor: "#cbd5e1" },
+  sampleTag: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#94a3b8",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "#e2e8f0",
+  },
+  sampleTagText: { color: "#475569", fontSize: 11, fontWeight: "700" },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(2, 6, 23, 0.35)",
