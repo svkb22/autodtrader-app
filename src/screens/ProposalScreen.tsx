@@ -64,9 +64,12 @@ export default function ProposalScreen({ route }: Props): React.JSX.Element {
 
   const canAct = useMemo(() => {
     if (!proposal) return false;
+    if (proposal.is_shadow || proposal.status === "shadow") return false;
     if (proposal.status !== "pending") return false;
     return !isExpired(proposal.expires_at);
   }, [proposal]);
+
+  const isShadow = proposal?.is_shadow || proposal?.status === "shadow";
 
   const onApprove = useCallback(async () => {
     if (!proposal) return;
@@ -155,12 +158,25 @@ export default function ProposalScreen({ route }: Props): React.JSX.Element {
   const notional = proposal.entry.limit_price * proposal.qty;
   const riskUsd = notional * proposal.stop_loss_pct;
   const targetUsd = notional * proposal.take_profit_pct;
+  const debugPayload = (proposal.debug_payload ?? null) as Record<string, unknown> | null;
+  const debugMetrics = (debugPayload?.metrics ?? null) as Record<string, unknown> | null;
+  const debugBreakdown = (debugPayload?.score_breakdown ?? null) as Record<string, unknown> | null;
+  const debugGates = (debugPayload?.gates ?? null) as Record<string, unknown> | null;
+  const debugGateEntries = debugGates ? Object.entries(debugGates) : [];
 
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.side}>BUY {proposal.symbol}</Text>
+        <View style={styles.headRow}>
+          <Text style={styles.side}>BUY {proposal.symbol}</Text>
+          {isShadow ? (
+            <View style={styles.shadowBadge}>
+              <Text style={styles.shadowBadgeText}>Shadow (Debug)</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={styles.reco}>Recommendation: {recommendationText(proposal.strength)}</Text>
+        {isShadow ? <Text style={styles.shadowInfo}>{proposal.shadow_reason ?? "Debug shadow proposal (non-actionable)"}</Text> : null}
 
         <Text style={styles.bigText}>Risk {usd(riskUsd)} • Target {usd(targetUsd)}</Text>
         <Text style={styles.subtle}>Reward/Risk 2.0x</Text>
@@ -179,21 +195,66 @@ export default function ProposalScreen({ route }: Props): React.JSX.Element {
 
         <Text style={styles.label}>Expires In</Text>
         <Countdown expiresAtISO={proposal.expires_at} onExpire={load} />
-        {!canAct ? <Text style={styles.statusText}>Status: {proposal.status === "pending" ? "expired" : proposal.status}</Text> : null}
+        {!canAct ? (
+          <Text style={styles.statusText}>
+            Status: {proposal.status === "pending" ? "expired" : proposal.status}
+            {isShadow ? " (debug-only)" : ""}
+          </Text>
+        ) : null}
 
-        <Pressable
-          style={[styles.holdButton, (!canAct || loading) && styles.disabled]}
-          disabled={!canAct || loading}
-          onPressIn={onApprovePressIn}
-          onPressOut={onApprovePressOut}
-        >
-          <View style={[styles.holdProgress, { width: `${holdProgress * 100}%` }]} />
-          <Text style={styles.buttonText}>Press and hold to approve</Text>
-        </Pressable>
+        {isShadow ? (
+          <View style={styles.debugBanner}>
+            <Text style={styles.debugBannerText}>Debug mode: approvals and execution are disabled for shadow proposals.</Text>
+          </View>
+        ) : (
+          <>
+            <Pressable
+              style={[styles.holdButton, (!canAct || loading) && styles.disabled]}
+              disabled={!canAct || loading}
+              onPressIn={onApprovePressIn}
+              onPressOut={onApprovePressOut}
+            >
+              <View style={[styles.holdProgress, { width: `${holdProgress * 100}%` }]} />
+              <Text style={styles.buttonText}>Press and hold to approve</Text>
+            </Pressable>
 
-        <Pressable style={[styles.rejectButton, (!canAct || loading) && styles.disabled]} disabled={!canAct || loading} onPress={onReject}>
-          <Text style={styles.buttonText}>Reject</Text>
-        </Pressable>
+            <Pressable style={[styles.rejectButton, (!canAct || loading) && styles.disabled]} disabled={!canAct || loading} onPress={onReject}>
+              <Text style={styles.buttonText}>Reject</Text>
+            </Pressable>
+          </>
+        )}
+
+        {isShadow && debugPayload ? (
+          <View style={styles.debugPanel}>
+            <Text style={styles.debugPanelTitle}>Engine Debug</Text>
+            {debugMetrics ? (
+              <Text style={styles.debugLine}>
+                Metrics: ret5 {String(debugMetrics.ret_5m ?? "-")} • ret15 {String(debugMetrics.ret_15m ?? "-")} • rel vol {String(debugMetrics.rel_vol ?? "-")} • spread {String(debugMetrics.spread_pct ?? "-")} • ATR {String(debugMetrics.atr_proxy ?? "-")} • bars {String(debugMetrics.bars_count ?? "-")}
+              </Text>
+            ) : null}
+            {debugBreakdown ? (
+              <Text style={styles.debugLine}>
+                Score: {String(debugBreakdown.score_total ?? proposal.score)} (mom {String(debugBreakdown.s_mom ?? "-")}, relvol {String(debugBreakdown.s_relvol ?? "-")}, spread {String(debugBreakdown.s_spread ?? "-")}, vol {String(debugBreakdown.s_vol ?? "-")})
+              </Text>
+            ) : null}
+            {debugGateEntries.length > 0 ? (
+              <View style={styles.gatesList}>
+                {debugGateEntries.slice(0, 12).map(([name, value]) => {
+                  const gate = (value ?? {}) as Record<string, unknown>;
+                  const passed = Boolean(gate.passed);
+                  return (
+                    <View key={name} style={styles.gateRow}>
+                      <Text style={styles.gateName}>{name}</Text>
+                      <Text style={[styles.gateValue, passed ? styles.gatePass : styles.gateFail]}>
+                        {passed ? "pass" : "fail"} • {String(gate.value ?? "-")} / {String(gate.threshold ?? "-")}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.overviewWrap}>
           <Pressable style={styles.overviewHeader} onPress={toggleOverview}>
@@ -287,8 +348,22 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 8,
   },
+  headRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   side: { color: "#0f172a", fontSize: 28, fontWeight: "800" },
+  shadowBadge: {
+    backgroundColor: "#e2e8f0",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  shadowBadgeText: { color: "#334155", fontSize: 11, fontWeight: "700" },
   reco: { color: "#334155", fontWeight: "700" },
+  shadowInfo: { color: "#475569", fontSize: 12 },
   bigText: { color: "#111827", fontSize: 20, fontWeight: "800" },
   subtle: { color: "#64748b" },
   whyBox: { backgroundColor: "#f8fafc", borderRadius: 10, padding: 10, gap: 4 },
@@ -297,6 +372,15 @@ const styles = StyleSheet.create({
   meta: { color: "#1f2937", fontWeight: "600" },
   label: { color: "#334155", fontWeight: "600", marginTop: 2 },
   statusText: { color: "#b91c1c", fontWeight: "700" },
+  debugBanner: {
+    marginTop: 8,
+    borderRadius: 10,
+    backgroundColor: "#eef2ff",
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
+    padding: 10,
+  },
+  debugBannerText: { color: "#3730a3", fontSize: 12, fontWeight: "600" },
   holdButton: {
     marginTop: 8,
     height: 52,
@@ -334,4 +418,19 @@ const styles = StyleSheet.create({
   overviewLine: { color: "#334155", fontSize: 13 },
   overviewMuted: { color: "#64748b", fontSize: 12 },
   readMore: { color: "#2563eb", fontWeight: "600", marginTop: 2 },
+  debugPanel: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    paddingTop: 10,
+    gap: 6,
+  },
+  debugPanelTitle: { color: "#0f172a", fontWeight: "700" },
+  debugLine: { color: "#334155", fontSize: 12 },
+  gatesList: { gap: 4, marginTop: 2 },
+  gateRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  gateName: { color: "#334155", fontSize: 12, flexShrink: 1 },
+  gateValue: { fontSize: 12, flexShrink: 1, textAlign: "right" },
+  gatePass: { color: "#166534" },
+  gateFail: { color: "#b91c1c" },
 });

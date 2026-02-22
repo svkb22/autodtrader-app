@@ -23,6 +23,7 @@ const statusFilters: Array<{ key: FilterStatus; label: string }> = [
   { key: "expired", label: "Expired" },
   { key: "rejected", label: "Rejected" },
   { key: "blocked", label: "Blocked" },
+  { key: "shadow", label: "Debug" },
 ];
 
 const rangeFilters: Array<{ key: ActivityRange; label: string }> = [
@@ -91,12 +92,28 @@ const sampleCards: ActivityItem[] = [
     stop_loss_price: 166.9,
     take_profit_price: 170.8,
   },
+  {
+    id: "sample-shadow",
+    symbol: "PANW",
+    side: "long",
+    status: "shadow",
+    created_at: new Date(Date.now() - 4 * 86_400_000).toISOString(),
+    expires_at: new Date(Date.now() - 4 * 86_220_000).toISOString(),
+    risk_used_usd: 45,
+    reason: "Debug shadow proposal (non-actionable)",
+    entry_price: 385.2,
+    stop_loss_price: 382.1,
+    take_profit_price: 391.4,
+    order_status: null,
+    rationale: ["Momentum close to threshold", "Spread acceptable", "Rejected by rel vol gate"],
+  },
 ];
 
 function statusColor(status: ActivityStatus): string {
   if (status === "executed") return "#166534";
   if (status === "expired") return "#475569";
   if (status === "rejected") return "#b45309";
+  if (status === "shadow") return "#7c3aed";
   return "#1d4ed8";
 }
 
@@ -104,6 +121,7 @@ function statusLabel(status: ActivityStatus): string {
   if (status === "executed") return "Executed";
   if (status === "expired") return "Expired";
   if (status === "rejected") return "Rejected";
+  if (status === "shadow") return "Shadow";
   return "Blocked";
 }
 
@@ -117,6 +135,7 @@ function summaryLine(item: ActivityItem): string {
   }
   if (item.status === "expired") return "Expired - Approval window ended";
   if (item.status === "rejected") return "Rejected - You declined";
+  if (item.status === "shadow") return `Shadow (Debug) - ${item.reason ?? "Non-actionable preview"}`;
   return `Blocked - ${item.reason ?? "Blocked by safeguards"}`;
 }
 
@@ -193,6 +212,7 @@ export default function ActivityScreen(): React.JSX.Element {
     if (status === "expired") return "No expired proposals for this range.";
     if (status === "rejected") return "No rejected proposals for this range.";
     if (status === "blocked") return "No blocked proposals for this range.";
+    if (status === "shadow") return "No debug shadow proposals for this range.";
     return "No activity yet for this range.";
   }, [status]);
 
@@ -232,10 +252,10 @@ export default function ActivityScreen(): React.JSX.Element {
           return (
             <Pressable key={item.id} style={[styles.card, styles.sampleCard]} onPress={() => setSelected(item)}>
               <View style={styles.rowBetween}>
-                <Text style={styles.row1}>{`${item.symbol} - ${item.side === "long" ? "Long" : "Short"}`}</Text>
-                <View style={styles.sampleTag}>
-                  <Text style={styles.sampleTagText}>Sample</Text>
-                </View>
+              <Text style={styles.row1}>{`${item.symbol} - ${item.side === "long" ? "Long" : "Short"}`}</Text>
+              <View style={styles.sampleTag}>
+                <Text style={styles.sampleTagText}>Sample</Text>
+              </View>
               </View>
 
               <View style={styles.rowBetween}>
@@ -342,7 +362,9 @@ export default function ActivityScreen(): React.JSX.Element {
 
                 <View style={styles.sheetBlock}>
                   <Text style={styles.blockTitle}>Approval Mode</Text>
-                  <Text style={styles.blockText}>{selected.approved_mode === "auto" ? "Auto" : "Manual"}</Text>
+                  <Text style={styles.blockText}>
+                    {selected.status === "shadow" ? "N/A (Debug shadow)" : selected.approved_mode === "auto" ? "Auto" : "Manual"}
+                  </Text>
                 </View>
               </>
             ) : null}

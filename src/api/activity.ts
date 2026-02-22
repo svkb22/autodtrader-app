@@ -11,6 +11,7 @@ type ActivityParams = {
 function mapReason(item: ProposalHistoryItem): string | undefined {
   if (item.status === "expired") return "Approval window ended";
   if (item.status === "rejected") return "You declined";
+  if (item.status === "shadow") return "Debug shadow proposal (non-actionable)";
   if (item.status === "blocked") {
     const lower = (item.reason ?? "").toLowerCase();
     if (lower.includes("daily loss")) return "Daily loss cap reached";
@@ -40,9 +41,11 @@ function mapHistoryToActivity(
     .filter((item) => item.status !== "pending")
     .map((item) => {
       const outcome = outcomes[item.id];
-      const normalizedStatus: ActivityStatus = item.status === "approved" ? "executed" : (item.status as ActivityStatus);
+      const normalizedStatus: ActivityStatus =
+        item.status === "approved" ? "executed" : (item.status as ActivityStatus);
       const normalizedSide: "long" | "short" = item.side.toLowerCase() === "sell" ? "short" : "long";
-      const approvedMode: "manual" | "auto" = item.reason?.toLowerCase().includes("auto") ? "auto" : "manual";
+      const approvedMode: "manual" | "auto" =
+        item.reason?.toLowerCase().includes("auto") ? "auto" : "manual";
       return {
         id: item.id,
         symbol: item.symbol,
@@ -54,7 +57,7 @@ function mapHistoryToActivity(
         expires_at: item.expires_at ?? undefined,
         risk_used_usd: item.risk.max_loss_usd,
         pnl_total: outcome ? outcome.realized_pnl + outcome.unrealized_pnl : undefined,
-        approved_mode: approvedMode,
+        approved_mode: normalizedStatus === "shadow" ? undefined : approvedMode,
         blocked_reason: item.status === "blocked" ? item.reason ?? undefined : undefined,
         rejected_by: item.status === "rejected" ? "user" : undefined,
         entry_price: item.prices.entry_limit_price,

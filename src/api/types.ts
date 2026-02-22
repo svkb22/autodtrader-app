@@ -65,7 +65,8 @@ export type ProposalStatus =
   | "rejected"
   | "expired"
   | "blocked"
-  | "executed";
+  | "executed"
+  | "shadow";
 
 export type ProposalStrength = "strong" | "medium" | "low";
 
@@ -106,6 +107,9 @@ export type Proposal = {
   event_risk_reason?: string | null;
   blocked_reason?: string | null;
   status: ProposalStatus;
+  is_shadow?: boolean;
+  debug_payload?: Record<string, unknown> | null;
+  shadow_reason?: string | null;
   expires_at: string;
   created_at: string;
   decision_at?: string | null;
@@ -192,7 +196,7 @@ export type ProposalDecisionResult = {
   order: Order | null;
 };
 
-export type ActivityStatus = "executed" | "expired" | "rejected" | "blocked";
+export type ActivityStatus = "executed" | "expired" | "rejected" | "blocked" | "shadow";
 export type ActivityRange = "1w" | "1m" | "all";
 
 export type ActivityItem = {
