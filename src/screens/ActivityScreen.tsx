@@ -155,6 +155,9 @@ function summaryLine(item: ActivityItem): string {
       const sign = item.pnl_total >= 0 ? "+" : "";
       return `Executed - ${sign}${usd(item.pnl_total).replace("$", "$")}`;
     }
+    if (item.order_status) {
+      return `Executed - ${item.order_status}`;
+    }
     return "Executed";
   }
   if (item.status === "expired") return "Expired - Approval window ended";
