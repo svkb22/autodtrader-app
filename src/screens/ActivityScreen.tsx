@@ -23,7 +23,7 @@ const statusFilters: Array<{ key: FilterStatus; label: string }> = [
   { key: "expired", label: "Expired" },
   { key: "rejected", label: "Rejected" },
   { key: "blocked", label: "Blocked" },
-  { key: "shadow", label: "Debug" },
+  { key: "shadow", label: "Shadow" },
 ];
 
 const rangeFilters: Array<{ key: ActivityRange; label: string }> = [
@@ -112,7 +112,7 @@ const sampleCards: ActivityItem[] = [
     created_at: new Date(Date.now() - 4 * 86_400_000).toISOString(),
     expires_at: new Date(Date.now() - 4 * 86_220_000).toISOString(),
     risk_used_usd: 45,
-    reason: "Debug shadow proposal (non-actionable)",
+    reason: "Shadow proposal (non-actionable)",
     entry_price: 385.2,
     stop_loss_price: 382.1,
     take_profit_price: 391.4,
@@ -162,7 +162,7 @@ function summaryLine(item: ActivityItem): string {
   }
   if (item.status === "expired") return "Expired - Approval window ended";
   if (item.status === "rejected") return "Rejected - You declined";
-  if (item.status === "shadow") return `Shadow (Debug) - ${item.reason ?? "Non-actionable preview"}`;
+  if (item.status === "shadow") return `Shadow - ${item.reason ?? "Non-actionable preview"}`;
   return `Blocked - ${item.reason ?? "Blocked by safeguards"}`;
 }
 
@@ -239,7 +239,7 @@ export default function ActivityScreen(): React.JSX.Element {
     if (status === "expired") return "No expired proposals for this range.";
     if (status === "rejected") return "No rejected proposals for this range.";
     if (status === "blocked") return "No blocked proposals for this range.";
-    if (status === "shadow") return "No debug shadow proposals for this range.";
+    if (status === "shadow") return "No shadow proposals for this range.";
     return "No activity yet for this range.";
   }, [status]);
 
@@ -414,7 +414,7 @@ export default function ActivityScreen(): React.JSX.Element {
                 <View style={styles.sheetBlock}>
                   <Text style={styles.blockTitle}>Approval Mode</Text>
                   <Text style={styles.blockText}>
-                    {selected.status === "shadow" ? "N/A (Debug shadow)" : selected.approved_mode === "auto" ? "Auto" : "Manual"}
+                    {selected.status === "shadow" ? "N/A (Shadow proposal)" : selected.approved_mode === "auto" ? "Auto" : "Manual"}
                   </Text>
                 </View>
               </>

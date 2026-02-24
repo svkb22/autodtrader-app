@@ -27,7 +27,7 @@ export default function ProposalCard({ proposal, availableCapital = null, onPres
         <Text style={styles.title}>{proposal.side.toUpperCase()} {proposal.symbol}</Text>
         {isShadow ? (
           <View style={styles.shadowBadge}>
-            <Text style={styles.shadowBadgeText}>Shadow (Debug)</Text>
+            <Text style={styles.shadowBadgeText}>Shadow</Text>
           </View>
         ) : null}
       </View>

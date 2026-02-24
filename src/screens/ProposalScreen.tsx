@@ -171,12 +171,12 @@ export default function ProposalScreen({ route }: Props): React.JSX.Element {
           <Text style={styles.side}>BUY {proposal.symbol}</Text>
           {isShadow ? (
             <View style={styles.shadowBadge}>
-              <Text style={styles.shadowBadgeText}>Shadow (Debug)</Text>
+              <Text style={styles.shadowBadgeText}>Shadow</Text>
             </View>
           ) : null}
         </View>
         <Text style={styles.reco}>Recommendation: {recommendationText(proposal.strength)}</Text>
-        {isShadow ? <Text style={styles.shadowInfo}>{proposal.shadow_reason ?? "Debug shadow proposal (non-actionable)"}</Text> : null}
+        {isShadow ? <Text style={styles.shadowInfo}>{proposal.shadow_reason ?? "Shadow proposal (non-actionable)"}</Text> : null}
 
         <Text style={styles.bigText}>Risk {usd(riskUsd)} • Target {usd(targetUsd)}</Text>
         <Text style={styles.subtle}>Reward/Risk 2.0x</Text>
@@ -204,7 +204,7 @@ export default function ProposalScreen({ route }: Props): React.JSX.Element {
 
         {isShadow ? (
           <View style={styles.debugBanner}>
-            <Text style={styles.debugBannerText}>Debug mode: approvals and execution are disabled for shadow proposals.</Text>
+            <Text style={styles.debugBannerText}>Shadow mode: approvals and execution are disabled for shadow proposals.</Text>
           </View>
         ) : (
           <>

@@ -11,7 +11,7 @@ type ActivityParams = {
 function mapReason(item: ProposalHistoryItem): string | undefined {
   if (item.status === "expired") return "Approval window ended";
   if (item.status === "rejected") return "You declined";
-  if (item.status === "shadow") return "Debug shadow proposal (non-actionable)";
+  if (item.status === "shadow") return "Shadow proposal (non-actionable)";
   if (item.status === "blocked") {
     const lower = (item.reason ?? "").toLowerCase();
     if (lower.includes("daily loss")) return "Daily loss cap reached";
