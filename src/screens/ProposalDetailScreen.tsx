@@ -3,7 +3,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { getProposalsHistory, toApiError } from "@/api/client";
 import { ProposalHistoryItem } from "@/api/types";
-import { dateTime, usd } from "@/utils/format";
+import { dateTime, signedPct, usd, usdCompact } from "@/utils/format";
 
 type Props = {
   route?: { params?: { proposalId?: string } };
@@ -57,6 +57,26 @@ export default function ProposalDetailScreen({ route }: Props): React.JSX.Elemen
         <Text style={styles.row}>Target: {item.prices.take_profit_price == null ? "-" : usd(item.prices.take_profit_price)}</Text>
         <Text style={styles.row}>Filled Avg: {item.prices.filled_avg_price == null ? "-" : usd(item.prices.filled_avg_price)}</Text>
       </View>
+
+      {item.stock_overview ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Stock Overview</Text>
+          <Text style={styles.row}>Company: {item.stock_overview.company_name ?? item.symbol}</Text>
+          <Text style={styles.row}>Price: {item.stock_overview.last_price == null ? "-" : usd(item.stock_overview.last_price)}</Text>
+          <Text style={styles.row}>
+            Market Cap: {item.stock_overview.market_cap == null ? "-" : usdCompact(item.stock_overview.market_cap)}
+            {item.stock_overview.market_cap_segment ? ` (${item.stock_overview.market_cap_segment})` : ""}
+          </Text>
+          <Text style={styles.row}>Sector: {item.stock_overview.sector ?? "-"}</Text>
+          <Text style={styles.row}>
+            52W Range: {item.stock_overview.week52_low == null ? "-" : usd(item.stock_overview.week52_low)} -{" "}
+            {item.stock_overview.week52_high == null ? "-" : usd(item.stock_overview.week52_high)}
+          </Text>
+          <Text style={styles.subtle}>
+            Intraday: {item.stock_overview.intraday_change_pct == null ? "-" : signedPct(item.stock_overview.intraday_change_pct)}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Timestamps</Text>

@@ -13,7 +13,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { getActivity } from "@/api/activity";
 import { ActivityItem, ActivityRange, ActivityStatus } from "@/api/types";
 import ErrorState from "@/components/ErrorState";
-import { dateTime, usd } from "@/utils/format";
+import { dateTime, signedPct, usd, usdCompact } from "@/utils/format";
 
 type FilterStatus = "all" | ActivityStatus;
 
@@ -51,6 +51,18 @@ const sampleCards: ActivityItem[] = [
     take_profit_price: 193.6,
     filled_avg_price: 190.35,
     order_status: "filled",
+    stock_overview: {
+      company_name: "Apple Inc.",
+      last_price: 190.35,
+      market_cap: 2_950_000_000_000,
+      market_cap_segment: "Mega-cap",
+      sector: "Technology",
+      week52_low: 164.08,
+      week52_high: 199.62,
+      intraday_change_pct: 0.0084,
+      sparkline: [],
+      read_more_url: "https://finance.yahoo.com/quote/AAPL",
+    },
   },
   {
     id: "sample-expired",
@@ -106,6 +118,18 @@ const sampleCards: ActivityItem[] = [
     take_profit_price: 391.4,
     order_status: null,
     rationale: ["Momentum close to threshold", "Spread acceptable", "Rejected by rel vol gate"],
+    stock_overview: {
+      company_name: "Palo Alto Networks, Inc.",
+      last_price: 385.2,
+      market_cap: 124_000_000_000,
+      market_cap_segment: "Large-cap",
+      sector: "Technology",
+      week52_low: 241.7,
+      week52_high: 392.8,
+      intraday_change_pct: 0.0042,
+      sparkline: [],
+      read_more_url: "https://finance.yahoo.com/quote/PANW",
+    },
   },
 ];
 
@@ -239,6 +263,28 @@ export default function ActivityScreen(): React.JSX.Element {
     );
   };
 
+  const renderStockOverview = (item: ActivityItem) => {
+    const ov = item.stock_overview;
+    if (!ov) return null;
+    return (
+      <View style={styles.sheetBlock}>
+        <Text style={styles.blockTitle}>Stock Overview</Text>
+        <Text style={styles.blockText}>{`Company: ${ov.company_name ?? item.symbol}`}</Text>
+        <Text style={styles.blockText}>{`Price: ${ov.last_price != null ? usd(ov.last_price) : "-"}`}</Text>
+        <Text style={styles.blockText}>
+          {`Market Cap: ${ov.market_cap != null ? usdCompact(ov.market_cap) : "-"}${ov.market_cap_segment ? ` (${ov.market_cap_segment})` : ""}`}
+        </Text>
+        <Text style={styles.blockText}>{`Sector: ${ov.sector ?? "-"}`}</Text>
+        <Text style={styles.blockText}>
+          {`52W Range: ${ov.week52_low != null ? usd(ov.week52_low) : "-"} - ${ov.week52_high != null ? usd(ov.week52_high) : "-"}`}
+        </Text>
+        <Text style={styles.blockTextMuted}>
+          {`Intraday: ${ov.intraday_change_pct != null ? signedPct(ov.intraday_change_pct) : "-"}`}
+        </Text>
+      </View>
+    );
+  };
+
   const renderSamplePreview = () => {
     if (!SHOW_SAMPLE_PREVIEW) return null;
     const visibleSamples = sampleCards.filter((item) => (status === "all" ? true : item.status === status));
@@ -354,6 +400,8 @@ export default function ActivityScreen(): React.JSX.Element {
                   <Text style={styles.blockText}>{`P/L: ${typeof selected.pnl_total === "number" ? usd(selected.pnl_total) : "-"}`}</Text>
                   <Text style={styles.blockText}>{`Order: ${selected.order_status ?? "-"}`}</Text>
                 </View>
+
+                {renderStockOverview(selected)}
 
                 <View style={styles.sheetBlock}>
                   <Text style={styles.blockTitle}>Reason</Text>
@@ -476,4 +524,5 @@ const styles = StyleSheet.create({
   },
   blockTitle: { color: "#0f172a", fontWeight: "700", marginBottom: 2 },
   blockText: { color: "#334155", fontSize: 13 },
+  blockTextMuted: { color: "#64748b", fontSize: 12 },
 });

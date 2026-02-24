@@ -500,6 +500,7 @@ export async function getProposalsHistory(limit = 50, cursor?: string | null): P
           filled_avg_price: null,
           filled_at: null,
         },
+        stock_overview: mockProposal.stock_overview ?? null,
         reason: null,
       });
     }

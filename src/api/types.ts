@@ -150,6 +150,7 @@ export type ProposalHistoryItem = {
   rationale: string[];
   risk: ProposalHistoryRisk;
   prices: ProposalHistoryPrices;
+  stock_overview?: StockOverview | null;
   order_summary?: ProposalHistoryOrderSummary | null;
   reason?: string | null;
 };
@@ -220,6 +221,7 @@ export type ActivityItem = {
   filled_at?: string | null;
   order_status?: string | null;
   rationale?: string[];
+  stock_overview?: StockOverview | null;
 };
 
 export type ActivityResponse = {

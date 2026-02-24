@@ -67,6 +67,7 @@ function mapHistoryToActivity(
         filled_at: item.prices.filled_at,
         order_status: item.order_summary?.status ?? null,
         rationale: item.rationale,
+        stock_overview: item.stock_overview ?? null,
       };
     })
     .filter((item) => withinRange(item.created_at, range))
