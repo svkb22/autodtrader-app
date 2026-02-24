@@ -468,7 +468,8 @@ export async function getOrderOutcomes(): Promise<Record<string, OrderOutcome>> 
     updateMockOutcomes();
     return mockDelay({ ...mockOrderOutcomes });
   }
-  return {};
+  const res = await api.get<Record<string, OrderOutcome>>("/orders/outcomes");
+  return res.data ?? {};
 }
 
 export async function getProposalsHistory(limit = 50, cursor?: string | null): Promise<ProposalHistoryResponse> {
