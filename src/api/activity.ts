@@ -34,13 +34,24 @@ function withinRange(iso: string, range: ActivityRange): boolean {
 function mapHistoryToActivity(
   historyItems: ProposalHistoryItem[],
   outcomes: Record<string, { realized_pnl: number; unrealized_pnl: number }>,
+  recentOrders: Order[],
   range: ActivityRange,
   status?: ActivityStatus | "all"
 ): ActivityItem[] {
+  const orderByProposalId = new Map<string, Order>();
+  const orderByAlpacaId = new Map<string, Order>();
+  for (const order of recentOrders) {
+    if (order.client_order_id) orderByProposalId.set(order.client_order_id, order);
+    if (order.alpaca_order_id) orderByAlpacaId.set(order.alpaca_order_id, order);
+  }
+
   const mapped: ActivityItem[] = historyItems
     .filter((item) => item.status !== "pending")
     .map((item) => {
-      const outcome = outcomes[item.id];
+      const matchedOrder =
+        orderByProposalId.get(item.id) ??
+        (item.order_summary?.alpaca_order_id ? orderByAlpacaId.get(item.order_summary.alpaca_order_id) : undefined);
+      const outcome = matchedOrder ? outcomes[matchedOrder.id] : undefined;
       const normalizedStatus: ActivityStatus =
         item.status === "approved" ? "executed" : (item.status as ActivityStatus);
       const normalizedSide: "long" | "short" = item.side.toLowerCase() === "sell" ? "short" : "long";
@@ -79,6 +90,7 @@ function mapHistoryToActivity(
 
 function mapOrphanOrdersToActivity(
   orders: Order[],
+  outcomes: Record<string, { realized_pnl: number; unrealized_pnl: number }>,
   knownProposalIds: Set<string>,
   range: ActivityRange,
   status?: ActivityStatus | "all"
@@ -86,26 +98,29 @@ function mapOrphanOrdersToActivity(
   if (status && status !== "all" && status !== "executed") return [];
   return orders
     .filter((order) => !knownProposalIds.has(order.client_order_id))
-    .map((order): ActivityItem => ({
-      id: order.client_order_id,
-      symbol: order.symbol,
-      side: (order.side.toLowerCase() === "sell" ? "short" : "long") as "long" | "short",
-      status: "executed" as const,
-      reason: "Order detected; proposal history unavailable",
-      created_at: order.submitted_at,
-      decided_at: order.submitted_at,
-      risk_used_usd: undefined,
-      pnl_total: undefined,
-      approved_mode: undefined,
-      entry_price: order.avg_fill_price ?? null,
-      stop_loss_price: order.stop_loss_price,
-      take_profit_price: order.take_profit_price,
-      filled_avg_price: order.avg_fill_price,
-      filled_at: order.filled_at,
-      order_status: order.status,
-      rationale: [],
-      stock_overview: null,
-    }))
+    .map((order): ActivityItem => {
+      const outcome = outcomes[order.id];
+      return {
+        id: order.client_order_id,
+        symbol: order.symbol,
+        side: (order.side.toLowerCase() === "sell" ? "short" : "long") as "long" | "short",
+        status: "executed" as const,
+        reason: "Order detected; proposal history unavailable",
+        created_at: order.submitted_at,
+        decided_at: order.submitted_at,
+        risk_used_usd: undefined,
+        pnl_total: outcome ? outcome.realized_pnl + outcome.unrealized_pnl : undefined,
+        approved_mode: undefined,
+        entry_price: order.avg_fill_price ?? null,
+        stop_loss_price: order.stop_loss_price,
+        take_profit_price: order.take_profit_price,
+        filled_avg_price: order.avg_fill_price,
+        filled_at: order.filled_at,
+        order_status: order.status,
+        rationale: [],
+        stock_overview: null,
+      };
+    })
     .filter((item) => withinRange(item.created_at, range));
 }
 
@@ -129,9 +144,9 @@ export async function getActivity(params: ActivityParams = {}): Promise<Activity
     };
   } catch {
     const [history, outcomes, recentOrders] = await Promise.all([getProposalsHistory(200, null), getOrderOutcomes(), getRecentOrders()]);
-    const historyItems = mapHistoryToActivity(history.items, outcomes, range, status);
+    const historyItems = mapHistoryToActivity(history.items, outcomes, recentOrders, range, status);
     const knownProposalIds = new Set(history.items.map((item) => item.id));
-    const orphanOrderItems = mapOrphanOrdersToActivity(recentOrders, knownProposalIds, range, status);
+    const orphanOrderItems = mapOrphanOrdersToActivity(recentOrders, outcomes, knownProposalIds, range, status);
     const items = [...historyItems, ...orphanOrderItems].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
     const start = cursor ? Number(cursor) || 0 : 0;
     const end = Math.min(start + limit, items.length);
