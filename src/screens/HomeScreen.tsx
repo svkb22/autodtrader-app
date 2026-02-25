@@ -2,8 +2,8 @@ import React, { useCallback, useMemo, useState } from "react";
 import { LayoutChangeEvent, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
-import { getBrokerAccount, getCurrentProposal, getOrderOutcomes, getRecentOrders, getRisk, toApiError } from "@/api/client";
-import { BrokerAccount, Order, OrderOutcome, Proposal, RiskProfile } from "@/api/types";
+import { getBrokerAccount, getCurrentProposal, getExecutionSummary, getOrderOutcomes, getRecentOrders, getRisk, toApiError } from "@/api/client";
+import { BrokerAccount, ExecutionSummary, Order, OrderOutcome, Proposal, RiskProfile } from "@/api/types";
 import Countdown from "@/components/Countdown";
 import ErrorState from "@/components/ErrorState";
 import ProposalCard from "@/components/ProposalCard";
@@ -44,12 +44,13 @@ export default function HomeScreen(): React.JSX.Element {
     setRefreshing(true);
     setError(null);
     try {
-      const [currentProposal, recentOrders, account, outcomes, riskProfile] = await Promise.all([
+      const [currentProposal, recentOrders, account, outcomes, riskProfile, execSummary] = await Promise.all([
         getCurrentProposal(),
         getRecentOrders(),
         getBrokerAccount(),
         getOrderOutcomes(),
         getRisk(),
+        getExecutionSummary("1d").catch(() => null as ExecutionSummary | null),
       ]);
       setProposal(currentProposal);
       setOrders(recentOrders);
@@ -58,7 +59,7 @@ export default function HomeScreen(): React.JSX.Element {
       setOutcomesMap(outcomes);
 
       let unrealized = 0;
-      let realized = 0;
+      let realized = Number(execSummary?.total_realized_pnl ?? 0);
       let tradesToday = 0;
       for (const order of recentOrders) {
         if (!isSameDay(order.submitted_at)) continue;
@@ -66,7 +67,7 @@ export default function HomeScreen(): React.JSX.Element {
         const outcome: OrderOutcome | undefined = outcomes[order.id];
         if (!outcome) continue;
         unrealized += outcome.unrealized_pnl;
-        realized += outcome.realized_pnl;
+        // Realized P/L comes from execution analytics summary; keep only unrealized here.
       }
 
       setTodayTrades(tradesToday);

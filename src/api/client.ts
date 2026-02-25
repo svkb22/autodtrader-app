@@ -7,6 +7,8 @@ import {
   BrokerStatus,
   BrokerSettings,
   BrokerSettingsUpdate,
+  ExecutionRecentResponse,
+  ExecutionSummary,
   Order,
   OrderOutcome,
   Platform,
@@ -470,6 +472,16 @@ export async function getOrderOutcomes(): Promise<Record<string, OrderOutcome>> 
   }
   const res = await api.get<Record<string, OrderOutcome>>("/orders/outcomes");
   return res.data ?? {};
+}
+
+export async function getExecutionSummary(window: "1d" | "5d" = "1d"): Promise<ExecutionSummary> {
+  const res = await api.get<ExecutionSummary>(`/metrics/execution/summary?window=${window}`);
+  return res.data;
+}
+
+export async function getExecutionRecent(limit = 10): Promise<ExecutionRecentResponse> {
+  const res = await api.get<ExecutionRecentResponse>(`/metrics/execution/recent?limit=${limit}`);
+  return res.data ?? { items: [] };
 }
 
 export async function getProposalsHistory(limit = 50, cursor?: string | null): Promise<ProposalHistoryResponse> {

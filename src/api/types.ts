@@ -190,6 +190,39 @@ export type OrderOutcome = {
   updated_at: string;
 };
 
+export type ExecutionSummary = {
+  window: "1d" | "5d";
+  asof: string;
+  trades: number;
+  win_rate: number;
+  avg_realized_r: number | null;
+  total_realized_pnl: number;
+  avg_slippage_bps: number | null;
+  worst_slippage_bps: number | null;
+  trades_by_tier: Record<string, number>;
+};
+
+export type ExecutionRecentItem = {
+  order_id: string;
+  proposal_id: string | null;
+  symbol: string;
+  tier: "low" | "medium" | "strong" | null;
+  expected_entry: number;
+  actual_fill: number | null;
+  actual_exit_fill: number | null;
+  slippage_bps: number | null;
+  realized_pnl: number | null;
+  realized_r: number | null;
+  status: string;
+  submitted_at: string;
+  filled_at: string | null;
+  exit_filled_at: string | null;
+};
+
+export type ExecutionRecentResponse = {
+  items: ExecutionRecentItem[];
+};
+
 export type ProposalDecisionResult = {
   proposal_id: string;
   status: "approved" | "rejected" | "expired" | "blocked";
@@ -220,6 +253,10 @@ export type ActivityItem = {
   filled_avg_price?: number | null;
   filled_at?: string | null;
   order_status?: string | null;
+  exit_fill_price?: number | null;
+  realized_pnl?: number | null;
+  unrealized_pnl?: number | null;
+  execution_order_id?: string | null;
   rationale?: string[];
   stock_overview?: StockOverview | null;
 };

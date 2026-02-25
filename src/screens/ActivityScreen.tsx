@@ -151,9 +151,13 @@ function statusLabel(status: ActivityStatus): string {
 
 function summaryLine(item: ActivityItem): string {
   if (item.status === "executed") {
+    if (typeof item.realized_pnl === "number") {
+      const sign = item.realized_pnl >= 0 ? "+" : "";
+      return `Executed - Realized ${sign}${usd(item.realized_pnl)}`;
+    }
     if (typeof item.pnl_total === "number") {
       const sign = item.pnl_total >= 0 ? "+" : "";
-      return `Executed - ${sign}${usd(item.pnl_total).replace("$", "$")}`;
+      return `Executed - ${sign}${usd(item.pnl_total)}`;
     }
     if (item.order_status) {
       return `Executed - ${item.order_status}`;
@@ -245,7 +249,8 @@ export default function ActivityScreen(): React.JSX.Element {
 
   const renderItem = ({ item }: { item: ActivityItem }) => {
     const summary = summaryLine(item);
-    const isPnl = item.status === "executed" && typeof item.pnl_total === "number";
+    const displayPnl = typeof item.realized_pnl === "number" ? item.realized_pnl : item.pnl_total;
+    const isPnl = item.status === "executed" && typeof displayPnl === "number";
 
     return (
       <Pressable style={styles.card} onPress={() => setSelected(item)}>
@@ -256,7 +261,7 @@ export default function ActivityScreen(): React.JSX.Element {
           </View>
         </View>
 
-        <Text style={[styles.row2, isPnl ? { color: (item.pnl_total ?? 0) >= 0 ? "#166534" : "#b91c1c" } : null]}>{summary}</Text>
+        <Text style={[styles.row2, isPnl ? { color: (displayPnl ?? 0) >= 0 ? "#166534" : "#b91c1c" } : null]}>{summary}</Text>
 
         <View style={styles.rowBetween}>
           <Text style={styles.row3}>{formatDateCompact(item.created_at)}</Text>
@@ -297,7 +302,8 @@ export default function ActivityScreen(): React.JSX.Element {
         <Text style={styles.sampleSectionTitle}>Sample Preview</Text>
         {visibleSamples.map((item) => {
           const summary = summaryLine(item);
-          const isPnl = item.status === "executed" && typeof item.pnl_total === "number";
+          const displayPnl = typeof item.realized_pnl === "number" ? item.realized_pnl : item.pnl_total;
+          const isPnl = item.status === "executed" && typeof displayPnl === "number";
           return (
             <Pressable key={item.id} style={[styles.card, styles.sampleCard]} onPress={() => setSelected(item)}>
               <View style={styles.rowBetween}>
@@ -313,7 +319,7 @@ export default function ActivityScreen(): React.JSX.Element {
                 </View>
               </View>
 
-              <Text style={[styles.row2, isPnl ? { color: (item.pnl_total ?? 0) >= 0 ? "#166534" : "#b91c1c" } : null]}>{summary}</Text>
+              <Text style={[styles.row2, isPnl ? { color: (displayPnl ?? 0) >= 0 ? "#166534" : "#b91c1c" } : null]}>{summary}</Text>
               <View style={styles.rowBetween}>
                 <Text style={styles.row3}>{formatDateCompact(item.created_at)}</Text>
                 <Text style={styles.row3}>{`Risk ${typeof item.risk_used_usd === "number" ? usd(item.risk_used_usd) : "-"}`}</Text>
@@ -399,8 +405,11 @@ export default function ActivityScreen(): React.JSX.Element {
                 <View style={styles.sheetBlock}>
                   <Text style={styles.blockTitle}>Outcome</Text>
                   <Text style={styles.blockText}>{`Status: ${statusLabel(selected.status)}`}</Text>
-                  <Text style={styles.blockText}>{`Filled Avg: ${selected.filled_avg_price != null ? usd(selected.filled_avg_price) : "-"}`}</Text>
-                  <Text style={styles.blockText}>{`P/L: ${typeof selected.pnl_total === "number" ? usd(selected.pnl_total) : "-"}`}</Text>
+                  <Text style={styles.blockText}>{`Entry Fill: ${selected.filled_avg_price != null ? usd(selected.filled_avg_price) : "-"}`}</Text>
+                  <Text style={styles.blockText}>{`Exit Fill: ${selected.exit_fill_price != null ? usd(selected.exit_fill_price) : "-"}`}</Text>
+                  <Text style={styles.blockText}>{`Realized P/L: ${typeof selected.realized_pnl === "number" ? usd(selected.realized_pnl) : "-"}`}</Text>
+                  <Text style={styles.blockText}>{`Unrealized P/L: ${typeof selected.unrealized_pnl === "number" ? usd(selected.unrealized_pnl) : "-"}`}</Text>
+                  <Text style={styles.blockText}>{`Net P/L: ${typeof selected.pnl_total === "number" ? usd(selected.pnl_total) : "-"}`}</Text>
                   <Text style={styles.blockText}>{`Order: ${selected.order_status ?? "-"}`}</Text>
                 </View>
 

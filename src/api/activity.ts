@@ -1,5 +1,5 @@
-import api, { getOrderOutcomes, getProposalsHistory, getRecentOrders } from "@/api/client";
-import { ActivityItem, ActivityRange, ActivityResponse, ActivityStatus, Order, ProposalHistoryItem } from "@/api/types";
+import api, { getExecutionRecent, getOrderOutcomes, getProposalsHistory, getRecentOrders } from "@/api/client";
+import { ActivityItem, ActivityRange, ActivityResponse, ActivityStatus, ExecutionRecentItem, Order, ProposalHistoryItem } from "@/api/types";
 
 type ActivityParams = {
   status?: ActivityStatus | "all";
@@ -35,6 +35,7 @@ function mapHistoryToActivity(
   historyItems: ProposalHistoryItem[],
   outcomes: Record<string, { realized_pnl: number; unrealized_pnl: number }>,
   recentOrders: Order[],
+  execRecent: ExecutionRecentItem[],
   range: ActivityRange,
   status?: ActivityStatus | "all"
 ): ActivityItem[] {
@@ -44,6 +45,12 @@ function mapHistoryToActivity(
     if (order.client_order_id) orderByProposalId.set(order.client_order_id, order);
     if (order.alpaca_order_id) orderByAlpacaId.set(order.alpaca_order_id, order);
   }
+  const execByProposalId = new Map<string, ExecutionRecentItem>();
+  const execByOrderId = new Map<string, ExecutionRecentItem>();
+  for (const x of execRecent) {
+    execByOrderId.set(x.order_id, x);
+    if (x.proposal_id) execByProposalId.set(x.proposal_id, x);
+  }
 
   const mapped: ActivityItem[] = historyItems
     .filter((item) => item.status !== "pending")
@@ -51,12 +58,18 @@ function mapHistoryToActivity(
       const matchedOrder =
         orderByProposalId.get(item.id) ??
         (item.order_summary?.alpaca_order_id ? orderByAlpacaId.get(item.order_summary.alpaca_order_id) : undefined);
+      const exec =
+        execByProposalId.get(item.id) ??
+        (matchedOrder?.alpaca_order_id ? execByOrderId.get(matchedOrder.alpaca_order_id) : undefined);
       const outcome = matchedOrder ? outcomes[matchedOrder.id] : undefined;
       const normalizedStatus: ActivityStatus =
         item.status === "approved" ? "executed" : (item.status as ActivityStatus);
       const normalizedSide: "long" | "short" = item.side.toLowerCase() === "sell" ? "short" : "long";
       const approvedMode: "manual" | "auto" =
         item.reason?.toLowerCase().includes("auto") ? "auto" : "manual";
+      const realizedPnl = exec?.realized_pnl ?? undefined;
+      const unrealizedPnl = outcome ? outcome.unrealized_pnl : undefined;
+      const combinedPnl = realizedPnl ?? (outcome ? outcome.realized_pnl + outcome.unrealized_pnl : undefined);
       return {
         id: item.id,
         symbol: item.symbol,
@@ -67,16 +80,20 @@ function mapHistoryToActivity(
         decided_at: item.decision_at ?? undefined,
         expires_at: item.expires_at ?? undefined,
         risk_used_usd: item.risk.max_loss_usd,
-        pnl_total: outcome ? outcome.realized_pnl + outcome.unrealized_pnl : undefined,
+        pnl_total: combinedPnl,
+        realized_pnl: realizedPnl,
+        unrealized_pnl: unrealizedPnl,
         approved_mode: normalizedStatus === "shadow" ? undefined : approvedMode,
         blocked_reason: item.status === "blocked" ? item.reason ?? undefined : undefined,
         rejected_by: item.status === "rejected" ? "user" : undefined,
-        entry_price: item.prices.entry_limit_price,
+        entry_price: exec?.actual_fill ?? item.prices.entry_limit_price,
         stop_loss_price: item.prices.stop_loss_price,
         take_profit_price: item.prices.take_profit_price,
-        filled_avg_price: item.prices.filled_avg_price,
-        filled_at: item.prices.filled_at,
-        order_status: item.order_summary?.status ?? null,
+        filled_avg_price: exec?.actual_fill ?? item.prices.filled_avg_price,
+        exit_fill_price: exec?.actual_exit_fill ?? null,
+        filled_at: exec?.filled_at ?? item.prices.filled_at,
+        order_status: exec?.status ?? item.order_summary?.status ?? null,
+        execution_order_id: exec?.order_id ?? matchedOrder?.alpaca_order_id ?? null,
         rationale: item.rationale,
         stock_overview: item.stock_overview ?? null,
       };
@@ -91,15 +108,20 @@ function mapHistoryToActivity(
 function mapOrphanOrdersToActivity(
   orders: Order[],
   outcomes: Record<string, { realized_pnl: number; unrealized_pnl: number }>,
+  execRecent: ExecutionRecentItem[],
   knownProposalIds: Set<string>,
   range: ActivityRange,
   status?: ActivityStatus | "all"
 ): ActivityItem[] {
   if (status && status !== "all" && status !== "executed") return [];
+  const execByOrderId = new Map<string, ExecutionRecentItem>();
+  for (const x of execRecent) execByOrderId.set(x.order_id, x);
   return orders
     .filter((order) => !knownProposalIds.has(order.client_order_id))
     .map((order): ActivityItem => {
       const outcome = outcomes[order.id];
+      const exec = order.alpaca_order_id ? execByOrderId.get(order.alpaca_order_id) : undefined;
+      const realizedPnl = exec?.realized_pnl ?? undefined;
       return {
         id: order.client_order_id,
         symbol: order.symbol,
@@ -109,14 +131,18 @@ function mapOrphanOrdersToActivity(
         created_at: order.submitted_at,
         decided_at: order.submitted_at,
         risk_used_usd: undefined,
-        pnl_total: outcome ? outcome.realized_pnl + outcome.unrealized_pnl : undefined,
+        pnl_total: realizedPnl ?? (outcome ? outcome.realized_pnl + outcome.unrealized_pnl : undefined),
+        realized_pnl: realizedPnl,
+        unrealized_pnl: outcome?.unrealized_pnl,
         approved_mode: undefined,
-        entry_price: order.avg_fill_price ?? null,
+        entry_price: exec?.actual_fill ?? order.avg_fill_price ?? null,
         stop_loss_price: order.stop_loss_price,
         take_profit_price: order.take_profit_price,
-        filled_avg_price: order.avg_fill_price,
+        filled_avg_price: exec?.actual_fill ?? order.avg_fill_price,
+        exit_fill_price: exec?.actual_exit_fill ?? null,
         filled_at: order.filled_at,
-        order_status: order.status,
+        order_status: exec?.status ?? order.status,
+        execution_order_id: exec?.order_id ?? order.alpaca_order_id,
         rationale: [],
         stock_overview: null,
       };
@@ -143,10 +169,16 @@ export async function getActivity(params: ActivityParams = {}): Promise<Activity
       next_cursor: res.data.next_cursor ?? null,
     };
   } catch {
-    const [history, outcomes, recentOrders] = await Promise.all([getProposalsHistory(200, null), getOrderOutcomes(), getRecentOrders()]);
-    const historyItems = mapHistoryToActivity(history.items, outcomes, recentOrders, range, status);
+    const [history, outcomes, recentOrders, execRecentRes] = await Promise.all([
+      getProposalsHistory(200, null),
+      getOrderOutcomes(),
+      getRecentOrders(),
+      getExecutionRecent(200).catch(() => ({ items: [] })),
+    ]);
+    const execRecent = execRecentRes.items ?? [];
+    const historyItems = mapHistoryToActivity(history.items, outcomes, recentOrders, execRecent, range, status);
     const knownProposalIds = new Set(history.items.map((item) => item.id));
-    const orphanOrderItems = mapOrphanOrdersToActivity(recentOrders, outcomes, knownProposalIds, range, status);
+    const orphanOrderItems = mapOrphanOrdersToActivity(recentOrders, outcomes, execRecent, knownProposalIds, range, status);
     const items = [...historyItems, ...orphanOrderItems].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
     const start = cursor ? Number(cursor) || 0 : 0;
     const end = Math.min(start + limit, items.length);
