@@ -191,7 +191,7 @@ export type OrderOutcome = {
 };
 
 export type ExecutionSummary = {
-  window: "1d" | "5d";
+  window: "1d" | "5d" | "all";
   asof: string;
   trades: number;
   win_rate: number;

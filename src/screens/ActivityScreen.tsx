@@ -151,6 +151,10 @@ function statusLabel(status: ActivityStatus): string {
 
 function summaryLine(item: ActivityItem): string {
   if (item.status === "executed") {
+    const pendingLike = ["pending_new", "new", "accepted", "pending_replace", "accepted_for_bidding"];
+    if (item.order_status && pendingLike.includes(item.order_status) && item.filled_avg_price == null) {
+      return `Submitted - ${item.order_status}`;
+    }
     if (typeof item.realized_pnl === "number") {
       const sign = item.realized_pnl >= 0 ? "+" : "";
       return `Executed - Realized ${sign}${usd(item.realized_pnl)}`;
@@ -414,6 +418,7 @@ export default function ActivityScreen(): React.JSX.Element {
                 </View>
 
                 {renderStockOverview(selected)}
+
 
                 <View style={styles.sheetBlock}>
                   <Text style={styles.blockTitle}>Reason</Text>

@@ -474,7 +474,7 @@ export async function getOrderOutcomes(): Promise<Record<string, OrderOutcome>> 
   return res.data ?? {};
 }
 
-export async function getExecutionSummary(window: "1d" | "5d" = "1d"): Promise<ExecutionSummary> {
+export async function getExecutionSummary(window: "1d" | "5d" | "all" = "1d"): Promise<ExecutionSummary> {
   const res = await api.get<ExecutionSummary>(`/metrics/execution/summary?window=${window}`);
   return res.data;
 }

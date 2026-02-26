@@ -27,6 +27,7 @@ export default function HomeScreen(): React.JSX.Element {
   const [brokerAccount, setBrokerAccount] = useState<BrokerAccount | null>(null);
   const [todayUnrealized, setTodayUnrealized] = useState<number>(0);
   const [todayRealized, setTodayRealized] = useState<number>(0);
+  const [cumulativeRealized, setCumulativeRealized] = useState<number>(0);
   const [todayTrades, setTodayTrades] = useState<number>(0);
   const [outcomesMap, setOutcomesMap] = useState<Record<string, OrderOutcome>>({});
   const [chartRange, setChartRange] = useState<ChartRange>("1D");
@@ -44,13 +45,14 @@ export default function HomeScreen(): React.JSX.Element {
     setRefreshing(true);
     setError(null);
     try {
-      const [currentProposal, recentOrders, account, outcomes, riskProfile, execSummary] = await Promise.all([
+      const [currentProposal, recentOrders, account, outcomes, riskProfile, execSummary1d, execSummaryAll] = await Promise.all([
         getCurrentProposal(),
         getRecentOrders(),
         getBrokerAccount(),
         getOrderOutcomes(),
         getRisk(),
         getExecutionSummary("1d").catch(() => null as ExecutionSummary | null),
+        getExecutionSummary("all").catch(() => null as ExecutionSummary | null),
       ]);
       setProposal(currentProposal);
       setOrders(recentOrders);
@@ -59,7 +61,7 @@ export default function HomeScreen(): React.JSX.Element {
       setOutcomesMap(outcomes);
 
       let unrealized = 0;
-      let realized = Number(execSummary?.total_realized_pnl ?? 0);
+      let realized = Number(execSummary1d?.total_realized_pnl ?? 0);
       let tradesToday = 0;
       for (const order of recentOrders) {
         if (!isSameDay(order.submitted_at)) continue;
@@ -73,6 +75,7 @@ export default function HomeScreen(): React.JSX.Element {
       setTodayTrades(tradesToday);
       setTodayUnrealized(Number(unrealized.toFixed(2)));
       setTodayRealized(Number(realized.toFixed(2)));
+      setCumulativeRealized(Number((execSummaryAll?.total_realized_pnl ?? 0).toFixed(2)));
     } catch (e) {
       setError(toApiError(e));
     } finally {
@@ -99,7 +102,7 @@ export default function HomeScreen(): React.JSX.Element {
   const dayNetPnlText = `${dayNetPnl >= 0 ? "+" : "-"}${usd(Math.abs(dayNetPnl))}`;
   const dayNetPnlPct = appBudget > 0 ? dayNetPnl / appBudget : 0;
   const dayNetPnlPctText = `${dayNetPnlPct >= 0 ? "+" : ""}${(dayNetPnlPct * 100).toFixed(2)}%`;
-  const currentInvestmentValue = appBudget + todayRealized + todayUnrealized;
+  const currentInvestmentValue = appBudget + cumulativeRealized + todayUnrealized;
   const valueColor = "#0f172a";
   const pnlColor = dayNetPnl >= 0 ? "#15803d" : "#b91c1c";
   const recentOrderPreview = orders.slice(0, 3);
