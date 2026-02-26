@@ -6,7 +6,7 @@ import { useAuth } from "@/auth/AuthContext";
 
 export default function SettingsScreen(): React.JSX.Element {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
-  const { signOut } = useAuth();
+  const { signOut, userId } = useAuth();
   const [loggingOut, setLoggingOut] = useState<boolean>(false);
 
   const performLogout = async () => {
@@ -51,6 +51,14 @@ export default function SettingsScreen(): React.JSX.Element {
       </Pressable>
 
       <Text style={styles.sectionLabel}>Account</Text>
+      {userId ? (
+        <View style={styles.debugCard}>
+          <Text style={styles.debugLabel}>User ID</Text>
+          <Text selectable style={styles.debugValue}>
+            {userId}
+          </Text>
+        </View>
+      ) : null}
       <Pressable style={[styles.logoutButton, loggingOut && styles.disabled]} onPress={onLogout} disabled={loggingOut}>
         <Text style={styles.logoutText}>{loggingOut ? "Logging out..." : "Log Out"}</Text>
       </Pressable>
@@ -76,6 +84,16 @@ const styles = StyleSheet.create({
   cardTitle: { color: "#0f172a", fontWeight: "700", fontSize: 16 },
   cardSubtitle: { color: "#64748b", marginTop: 3, fontSize: 13 },
   chevron: { color: "#94a3b8", fontSize: 22, lineHeight: 22 },
+  debugCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "white",
+    padding: 12,
+    gap: 4,
+  },
+  debugLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
+  debugValue: { color: "#0f172a", fontSize: 12, fontFamily: Platform.select({ ios: "Menlo", default: "monospace" }) },
   logoutButton: {
     marginTop: 2,
     backgroundColor: "white",
