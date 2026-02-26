@@ -9,7 +9,9 @@
     "android": "expo run:android",
     "build:ios": "eas build -p ios --profile production",
     "submit:ios": "eas submit -p ios",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "npx expo export -p web && wrangler deploy",
+    "preview": "npx expo export -p web && wrangler dev"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -41,6 +43,7 @@
     "@types/react": "~19.1.10",
     "babel-preset-expo": "^54.0.10",
     "eas-cli": "^18.0.1",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^4.69.0"
   }
 }
