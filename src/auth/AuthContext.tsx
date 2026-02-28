@@ -241,7 +241,17 @@ export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element
           throw new Error("Google did not return auth tokens.");
         }
         const credential = GoogleAuthProvider.credential(idToken ?? null, accessToken ?? null);
-        await signInWithCredential(auth, credential);
+        const creds = await signInWithCredential(auth, credential);
+        const firebaseToken = await creds.user.getIdToken(true);
+        const response = await authFirebase(firebaseToken);
+        await setAuthSession(response.accessToken, response.user, "firebase");
+        setSessionProvider("firebase");
+        setFirebaseUser(creds.user);
+        setFirebaseIdToken(firebaseToken);
+        setAppAccessToken(response.accessToken);
+        setUser(response.user);
+        setUserId(response.user.id);
+        setAuthState(isGoogleUser(creds.user) || creds.user.emailVerified ? "signedIn_verified" : "signedIn_unverified");
       },
       signupEmail: async (email: string, password: string) => {
         if (!auth) {
