@@ -16,10 +16,12 @@ type Props = {
 
 export default function AuthLandingScreen({ navigation }: Props): React.JSX.Element {
   const { loginGoogle } = useAuth();
+  const enableGoogleLogin = process.env.EXPO_PUBLIC_ENABLE_GOOGLE_LOGIN === "true";
+  const enableLegacyLogin = process.env.EXPO_PUBLIC_ENABLE_LEGACY_LOGIN === "true";
   const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
   const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  const googleConfigured = firebaseConfigReady && Boolean(googleIosClientId || googleAndroidClientId || googleWebClientId);
+  const googleConfigured = enableGoogleLogin && firebaseConfigReady && Boolean(googleIosClientId || googleAndroidClientId || googleWebClientId);
   const [loadingGoogle, setLoadingGoogle] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>("");
 
@@ -61,20 +63,22 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
       <Text style={styles.title}>Welcome</Text>
       <Text style={styles.subtitle}>Low-frequency. You stay in control.</Text>
 
-      <Pressable
-        accessibilityLabel="Continue with Google"
-        style={[styles.googleButton, (!request || loadingGoogle || !googleConfigured) && styles.disabled]}
-        disabled={!request || loadingGoogle || !googleConfigured}
-        onPress={() => {
-          track("auth_google_tapped");
-          void promptAsync();
-        }}
-      >
-        <View style={styles.googleInner}>
-          <AntDesign name="google" size={18} color="#0f172a" />
-          <Text style={styles.googleText}>{loadingGoogle ? "Connecting..." : "Continue with Google"}</Text>
-        </View>
-      </Pressable>
+      {enableGoogleLogin ? (
+        <Pressable
+          accessibilityLabel="Continue with Google"
+          style={[styles.googleButton, (!request || loadingGoogle || !googleConfigured) && styles.disabled]}
+          disabled={!request || loadingGoogle || !googleConfigured}
+          onPress={() => {
+            track("auth_google_tapped");
+            void promptAsync();
+          }}
+        >
+          <View style={styles.googleInner}>
+            <AntDesign name="google" size={18} color="#0f172a" />
+            <Text style={styles.googleText}>{loadingGoogle ? "Connecting..." : "Continue with Google"}</Text>
+          </View>
+        </Pressable>
+      ) : null}
 
       <Pressable
         accessibilityLabel="Continue with Email"
@@ -84,15 +88,17 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
         <Text style={styles.primaryText}>Continue with Email</Text>
       </Pressable>
 
-      <Pressable
-        accessibilityLabel="Use default login"
-        style={styles.secondaryButton}
-        onPress={() => navigation.navigate("LegacyLogin")}
-      >
-        <Text style={styles.secondaryText}>Use Default Login</Text>
-      </Pressable>
+      {enableLegacyLogin ? (
+        <Pressable
+          accessibilityLabel="Use default login"
+          style={styles.secondaryButton}
+          onPress={() => navigation.navigate("LegacyLogin")}
+        >
+          <Text style={styles.secondaryText}>Use Default Login</Text>
+        </Pressable>
+      ) : null}
 
-      {!googleConfigured ? <Text style={styles.helper}>Set EXPO_PUBLIC_GOOGLE_* and Firebase env vars to enable Google sign-in.</Text> : null}
+      {enableGoogleLogin && !googleConfigured ? <Text style={styles.helper}>Set EXPO_PUBLIC_GOOGLE_* and Firebase env vars to enable Google sign-in.</Text> : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
     </View>
   );
