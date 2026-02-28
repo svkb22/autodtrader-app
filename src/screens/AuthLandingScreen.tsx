@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { AntDesign } from "@expo/vector-icons";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 
@@ -75,7 +74,11 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
           onPress={onGooglePress}
         >
           <View style={styles.googleInner}>
-            <AntDesign name="google" size={18} color="#0f172a" />
+            <Image
+              source={require("../../assets/icons/google-g.png")}
+              style={styles.googleLogo}
+              resizeMode="contain"
+            />
             <Text style={styles.googleText}>{loadingGoogle ? "Connecting..." : "Continue with Google"}</Text>
           </View>
         </Pressable>
@@ -127,6 +130,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   googleInner: { flexDirection: "row", alignItems: "center", gap: 8 },
+  googleLogo: { width: 18, height: 18 },
   googleText: { color: "#0f172a", fontWeight: "600", fontSize: 15 },
   primaryButton: {
     minHeight: 48,
