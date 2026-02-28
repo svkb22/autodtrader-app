@@ -230,7 +230,7 @@ export type ProposalDecisionResult = {
   order: Order | null;
 };
 
-export type ActivityStatus = "executed" | "expired" | "rejected" | "blocked" | "shadow";
+export type ActivityStatus = "open" | "executed" | "expired" | "rejected" | "blocked" | "shadow";
 export type ActivityRange = "1w" | "1m" | "all";
 
 export type ActivityItem = {

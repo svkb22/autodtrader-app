@@ -19,6 +19,7 @@ type FilterStatus = "all" | ActivityStatus;
 
 const statusFilters: Array<{ key: FilterStatus; label: string }> = [
   { key: "all", label: "All" },
+  { key: "open", label: "Open" },
   { key: "executed", label: "Executed" },
   { key: "expired", label: "Expired" },
   { key: "rejected", label: "Rejected" },
@@ -134,6 +135,7 @@ const sampleCards: ActivityItem[] = [
 ];
 
 function statusColor(status: ActivityStatus): string {
+  if (status === "open") return "#0f766e";
   if (status === "executed") return "#166534";
   if (status === "expired") return "#475569";
   if (status === "rejected") return "#b45309";
@@ -142,6 +144,7 @@ function statusColor(status: ActivityStatus): string {
 }
 
 function statusLabel(status: ActivityStatus): string {
+  if (status === "open") return "Open";
   if (status === "executed") return "Executed";
   if (status === "expired") return "Expired";
   if (status === "rejected") return "Rejected";
@@ -150,6 +153,16 @@ function statusLabel(status: ActivityStatus): string {
 }
 
 function summaryLine(item: ActivityItem): string {
+  if (item.status === "open") {
+    if (typeof item.unrealized_pnl === "number") {
+      const sign = item.unrealized_pnl >= 0 ? "+" : "";
+      return `Open - Unrealized ${sign}${usd(item.unrealized_pnl)}`;
+    }
+    if (item.order_status) {
+      return `Open - ${item.order_status}`;
+    }
+    return "Open";
+  }
   if (item.status === "executed") {
     const pendingLike = ["pending_new", "new", "accepted", "pending_replace", "accepted_for_bidding"];
     if (item.order_status && pendingLike.includes(item.order_status) && item.filled_avg_price == null) {
