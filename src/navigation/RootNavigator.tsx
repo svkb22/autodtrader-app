@@ -18,7 +18,6 @@ import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ActivityScreen from "@/screens/ActivityScreen";
 import HomeScreen from "@/screens/HomeScreen";
-import LoginScreen from "@/screens/LoginScreen";
 import ProposalDetailScreen from "@/screens/ProposalDetailScreen";
 import ProposalScreen from "@/screens/ProposalScreen";
 import RiskSettingsScreen from "@/screens/RiskSettingsScreen";
@@ -115,7 +114,6 @@ function AuthNavigator(): React.JSX.Element {
       <AuthStack.Screen name="AuthLanding" component={AuthLandingScreen} options={{ title: "Sign In" }} />
       <AuthStack.Screen name="EmailAuth" component={EmailAuthScreen} options={{ title: "Email" }} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: "Reset Password" }} />
-      <AuthStack.Screen name="LegacyLogin" component={LoginScreen} options={{ title: "Default Login" }} />
     </AuthStack.Navigator>
   );
 }
