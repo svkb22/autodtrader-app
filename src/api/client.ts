@@ -8,6 +8,7 @@ import {
   BrokerSettings,
   BrokerSettingsUpdate,
   ExecutionRecentResponse,
+  RAnalyticsSummary,
   ExecutionSummary,
   Order,
   OrderOutcome,
@@ -482,6 +483,12 @@ export async function getExecutionSummary(window: "1d" | "5d" | "all" = "1d"): P
 export async function getExecutionRecent(limit = 10): Promise<ExecutionRecentResponse> {
   const res = await api.get<ExecutionRecentResponse>(`/metrics/execution/recent?limit=${limit}`);
   return res.data ?? { items: [] };
+}
+
+export async function getRAnalyticsSummary(days = 7): Promise<RAnalyticsSummary> {
+  const safeDays = Number.isFinite(days) ? Math.max(1, Math.min(365, Math.round(days))) : 7;
+  const res = await api.get<RAnalyticsSummary>(`/analytics/r/summary?days=${safeDays}`);
+  return res.data;
 }
 
 export async function getProposalsHistory(limit = 50, cursor?: string | null): Promise<ProposalHistoryResponse> {

@@ -223,6 +223,37 @@ export type ExecutionRecentResponse = {
   items: ExecutionRecentItem[];
 };
 
+export type RAnalyticsTierSummary = {
+  trades: number;
+  avg_r: number | null;
+  win_rate: number;
+};
+
+export type RAnalyticsSymbolSummary = {
+  symbol: string;
+  trades: number;
+  avg_r: number | null;
+  total_pnl_usd: number;
+};
+
+export type RAnalyticsSummary = {
+  days: number;
+  asof: string;
+  trades_total: number;
+  closed_trades: number;
+  win_rate: number;
+  avg_r: number | null;
+  avg_win_r: number | null;
+  avg_loss_r: number | null;
+  expectancy_r: number | null;
+  profit_factor: number | null;
+  max_drawdown_r: number;
+  max_consecutive_losses: number;
+  concentration_top_symbol_pct: number;
+  by_tier: Record<string, RAnalyticsTierSummary>;
+  by_symbol_top: RAnalyticsSymbolSummary[];
+};
+
 export type ProposalDecisionResult = {
   proposal_id: string;
   status: "approved" | "rejected" | "expired" | "blocked";
