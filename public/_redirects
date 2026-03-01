@@ -1,5 +1,6 @@
 /favicon.ico /favicon.ico 200
 /manifest.json /manifest.json 200
+/assets/node_modules/* /assets/node_modules/:splat 200
 /assets/* /assets/:splat 200
 /_expo/* /_expo/:splat 200
 /* / 200
