@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { getFinnhubCompanyContext } from "@/api/finnhub";
 import { getProposalsHistory, toApiError } from "@/api/client";
 import { ProposalHistoryItem } from "@/api/types";
 import { dateTime, signedPct, usd, usdCompact } from "@/utils/format";
@@ -12,6 +13,7 @@ type Props = {
 export default function ProposalDetailScreen({ route }: Props): React.JSX.Element {
   const proposalId = route?.params?.proposalId;
   const [item, setItem] = useState<ProposalHistoryItem | null>(null);
+  const [finnhubContext, setFinnhubContext] = useState<{ name: string | null; sector: string | null; industry: string | null; marketCapUsd: number | null } | null>(null);
 
   useEffect(() => {
     if (!proposalId) return;
@@ -22,6 +24,18 @@ export default function ProposalDetailScreen({ route }: Props): React.JSX.Elemen
       })
       .catch((e) => Alert.alert("Load failed", toApiError(e)));
   }, [proposalId]);
+
+  useEffect(() => {
+    if (!item) return;
+    const hasCompany = Boolean(item.stock_overview?.company_name || item.stock_overview?.sector || item.stock_overview?.market_cap);
+    if (hasCompany) return;
+    void getFinnhubCompanyContext(item.symbol).then((ctx) => setFinnhubContext(ctx));
+  }, [item]);
+
+  const companyName = useMemo(() => item?.stock_overview?.company_name ?? finnhubContext?.name ?? item?.symbol ?? "-", [finnhubContext?.name, item]);
+  const sector = useMemo(() => item?.stock_overview?.sector ?? finnhubContext?.sector ?? "-", [finnhubContext?.sector, item]);
+  const industry = useMemo(() => finnhubContext?.industry ?? "-", [finnhubContext?.industry]);
+  const marketCap = useMemo(() => item?.stock_overview?.market_cap ?? finnhubContext?.marketCapUsd ?? null, [finnhubContext?.marketCapUsd, item?.stock_overview?.market_cap]);
 
   if (!item) {
     return (
@@ -36,6 +50,14 @@ export default function ProposalDetailScreen({ route }: Props): React.JSX.Elemen
       <Text style={styles.title}>{item.side.toUpperCase()} {item.symbol}</Text>
       <Text style={styles.meta}>Status: {item.status}</Text>
       <Text style={styles.meta}>Strength: {item.strength}</Text>
+
+      <View style={styles.contextCard}>
+        <Text style={styles.cardTitle}>Company Context</Text>
+        <Text style={styles.row}>Company: {companyName}</Text>
+        <Text style={styles.row}>Sector: {sector}</Text>
+        <Text style={styles.row}>Industry: {industry}</Text>
+        <Text style={styles.row}>Market Cap: {marketCap == null ? "-" : usdCompact(marketCap)}</Text>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Rationale</Text>
@@ -60,14 +82,8 @@ export default function ProposalDetailScreen({ route }: Props): React.JSX.Elemen
 
       {item.stock_overview ? (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Stock Overview</Text>
-          <Text style={styles.row}>Company: {item.stock_overview.company_name ?? item.symbol}</Text>
+          <Text style={styles.cardTitle}>Market Snapshot</Text>
           <Text style={styles.row}>Price: {item.stock_overview.last_price == null ? "-" : usd(item.stock_overview.last_price)}</Text>
-          <Text style={styles.row}>
-            Market Cap: {item.stock_overview.market_cap == null ? "-" : usdCompact(item.stock_overview.market_cap)}
-            {item.stock_overview.market_cap_segment ? ` (${item.stock_overview.market_cap_segment})` : ""}
-          </Text>
-          <Text style={styles.row}>Sector: {item.stock_overview.sector ?? "-"}</Text>
           <Text style={styles.row}>
             52W Range: {item.stock_overview.week52_low == null ? "-" : usd(item.stock_overview.week52_low)} -{" "}
             {item.stock_overview.week52_high == null ? "-" : usd(item.stock_overview.week52_high)}
@@ -105,6 +121,14 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 24, fontWeight: "800", color: "#0f172a" },
   meta: { color: "#334155", fontWeight: "600" },
+  contextCard: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#dbe3ef",
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
   card: {
     backgroundColor: "white",
     borderWidth: 1,

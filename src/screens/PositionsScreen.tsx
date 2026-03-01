@@ -6,7 +6,7 @@ import { getActivity } from "@/api/activity";
 import { getRisk } from "@/api/client";
 import { ActivityItem } from "@/api/types";
 import ErrorState from "@/components/ErrorState";
-import SystemSummaryCard from "@/components/SystemSummaryCard";
+import { getActiveBrokerMode } from "@/storage/brokerMode";
 import { usd } from "@/utils/format";
 
 function isOpenPosition(item: ActivityItem): boolean {
@@ -16,6 +16,7 @@ function isOpenPosition(item: ActivityItem): boolean {
 export default function PositionsScreen(): React.JSX.Element {
   const [positions, setPositions] = useState<ActivityItem[]>([]);
   const [dailyCap, setDailyCap] = useState<number>(0);
+  const [activeMode, setActiveMode] = useState<"paper" | "live">("paper");
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,11 +24,12 @@ export default function PositionsScreen(): React.JSX.Element {
     setRefreshing(true);
     setError(null);
     try {
-      const [activity, risk] = await Promise.all([getActivity({ status: "all", range: "all", limit: 200 }), getRisk()]);
+      const [activity, risk, mode] = await Promise.all([getActivity({ status: "all", range: "all", limit: 200 }), getRisk(), getActiveBrokerMode()]);
       const openItems = activity.items.filter(isOpenPosition);
       openItems.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
       setPositions(openItems);
       setDailyCap(risk.max_daily_loss_usd);
+      setActiveMode(mode);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load positions.");
     } finally {
@@ -41,11 +43,9 @@ export default function PositionsScreen(): React.JSX.Element {
     }, [load])
   );
 
-  const riskUsed = useMemo(
-    () => positions.reduce((sum, item) => sum + (item.risk_used_usd ?? 0), 0),
-    [positions]
-  );
+  const riskUsed = useMemo(() => positions.reduce((sum, item) => sum + (item.risk_used_usd ?? 0), 0), [positions]);
   const riskRemaining = Math.max(0, dailyCap - riskUsed);
+  const unrealizedTotal = useMemo(() => positions.reduce((sum, item) => sum + (item.unrealized_pnl ?? 0), 0), [positions]);
 
   return (
     <FlatList
@@ -56,12 +56,14 @@ export default function PositionsScreen(): React.JSX.Element {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
       ListHeaderComponent={
         <View style={styles.headerWrap}>
-          <SystemSummaryCard />
-          <Text style={styles.title}>Positions</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Positions</Text>
+            <Text style={styles.modeChip}>{`Alpaca • ${activeMode === "live" ? "Live" : "Paper"}`}</Text>
+          </View>
           <Text style={styles.subtitle}>Open trades only. Calm tracking, no noise.</Text>
-          <View style={styles.riskCard}>
-            <Text style={styles.riskLabel}>Risk Remaining Today</Text>
-            <Text style={styles.riskValue}>{usd(riskRemaining)} / {usd(dailyCap)}</Text>
+          <View style={styles.metricsCard}>
+            <Text style={[styles.metricValue, { color: unrealizedTotal >= 0 ? "#166534" : "#b91c1c" }]}>Unrealized: {unrealizedTotal >= 0 ? "+" : ""}{usd(unrealizedTotal)}</Text>
+            <Text style={styles.metricSub}>Risk remaining today: {usd(riskRemaining)} / {usd(dailyCap)}</Text>
           </View>
           {error ? <ErrorState message={error} onRetry={load} /> : null}
         </View>
@@ -91,9 +93,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f1f5f9" },
   content: { padding: 16, gap: 10, paddingBottom: 24 },
   headerWrap: { gap: 10, marginBottom: 6 },
+  titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   title: { fontSize: 24, fontWeight: "800", color: "#0f172a" },
+  modeChip: {
+    color: "#334155",
+    fontSize: 11,
+    fontWeight: "700",
+    backgroundColor: "#e2e8f0",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   subtitle: { color: "#64748b", fontSize: 13 },
-  riskCard: {
+  metricsCard: {
     backgroundColor: "white",
     borderRadius: 14,
     borderWidth: 1,
@@ -101,8 +113,8 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 4,
   },
-  riskLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  riskValue: { color: "#0f172a", fontSize: 16, fontWeight: "800" },
+  metricValue: { fontSize: 18, fontWeight: "800" },
+  metricSub: { color: "#334155", fontSize: 13, fontWeight: "600" },
   emptyCard: {
     backgroundColor: "white",
     borderRadius: 18,

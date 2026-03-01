@@ -5,7 +5,7 @@ import { makeRedirectUri } from "expo-auth-session";
 
 import { track } from "@/analytics/track";
 import { toApiError } from "@/api/client";
-import { finishAlpacaOAuth, startAlpacaOAuth } from "@/api/broker";
+import { BrokerStatusResponse, finishAlpacaOAuth, getBrokerStatus, startAlpacaOAuth } from "@/api/broker";
 import { acceptStocksAgreement } from "@/api/agreements";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { getStocksAgreementState, setStocksAgreementAccepted } from "@/storage/agreements";
@@ -14,12 +14,22 @@ type BrokerMode = "paper" | "live";
 
 type Props = {
   navigation: { goBack: () => void };
+  route?: { params?: { mode?: BrokerMode } };
 };
 
 WebBrowser.maybeCompleteAuthSession();
 
-export default function ConnectAlpacaScreen({ navigation }: Props): React.JSX.Element {
-  const [mode, setMode] = useState<BrokerMode>("paper");
+const initialStatus: BrokerStatusResponse = {
+  alpaca: {
+    paper: { connected: false, connectedAt: null, accountId: null, lastError: null },
+    live: { connected: false, connectedAt: null, accountId: null, lastError: null },
+  },
+};
+
+export default function ConnectAlpacaScreen({ navigation, route }: Props): React.JSX.Element {
+  const presetMode = route?.params?.mode;
+  const [mode, setMode] = useState<BrokerMode>(presetMode ?? "paper");
+  const [status, setStatus] = useState<BrokerStatusResponse>(initialStatus);
   const [agreementAccepted, setAgreementAccepted] = useState<boolean>(false);
   const [agreementAcceptedAt, setAgreementAcceptedAt] = useState<string | null>(null);
   const [loadingAgreement, setLoadingAgreement] = useState<boolean>(true);
@@ -27,15 +37,21 @@ export default function ConnectAlpacaScreen({ navigation }: Props): React.JSX.El
   const [errorText, setErrorText] = useState<string>("");
 
   useEffect(() => {
-    getStocksAgreementState()
-      .then((state) => {
-        setAgreementAccepted(state.stocksAgreementAccepted);
-        setAgreementAcceptedAt(state.stocksAgreementAcceptedAt);
+    Promise.all([getStocksAgreementState(), getBrokerStatus()])
+      .then(([agreementState, brokerStatus]) => {
+        setAgreementAccepted(agreementState.stocksAgreementAccepted);
+        setAgreementAcceptedAt(agreementState.stocksAgreementAcceptedAt);
+        setStatus(brokerStatus);
       })
       .finally(() => setLoadingAgreement(false));
   }, []);
 
+  useEffect(() => {
+    if (presetMode) setMode(presetMode);
+  }, [presetMode]);
+
   const selectedMode = ENABLE_LIVE_BROKER ? mode : "paper";
+  const isModeConnected = selectedMode === "live" ? status.alpaca.live.connected : status.alpaca.paper.connected;
 
   const modeNote = useMemo(() => {
     if (selectedMode === "live") {
@@ -66,6 +82,10 @@ export default function ConnectAlpacaScreen({ navigation }: Props): React.JSX.El
 
   const onStartOAuth = async () => {
     if (!agreementAccepted) return;
+    if (isModeConnected) {
+      setErrorText(`Single ${selectedMode} account supported currently. Disconnect first to replace it.`);
+      return;
+    }
 
     setErrorText("");
     const redirectUri = makeRedirectUri({ scheme: "autodtrader", path: "broker/callback" });
@@ -149,6 +169,7 @@ export default function ConnectAlpacaScreen({ navigation }: Props): React.JSX.El
         )}
 
         <Text style={styles.helper}>{modeNote}</Text>
+        {isModeConnected ? <Text style={styles.lockedText}>Single {selectedMode} account supported currently.</Text> : null}
       </View>
 
       <View style={styles.card}>
@@ -179,8 +200,8 @@ export default function ConnectAlpacaScreen({ navigation }: Props): React.JSX.El
 
       <Pressable
         accessibilityLabel="Continue to Alpaca"
-        style={[styles.primaryButton, (!agreementAccepted || connecting) && styles.disabled]}
-        disabled={!agreementAccepted || connecting}
+        style={[styles.primaryButton, (!agreementAccepted || connecting || isModeConnected) && styles.disabled]}
+        disabled={!agreementAccepted || connecting || isModeConnected}
         onPress={() => void onStartOAuth()}
       >
         <Text style={styles.primaryButtonText}>{connecting ? "Connecting..." : "Continue to Alpaca"}</Text>
@@ -229,6 +250,7 @@ const styles = StyleSheet.create({
   },
   paperOnlyText: { color: "white", fontWeight: "600" },
   helper: { color: "#64748b", fontSize: 12 },
+  lockedText: { color: "#64748b", fontSize: 12, fontWeight: "600" },
   agreementText: { color: "#334155", fontSize: 13, lineHeight: 19 },
   linkText: { color: "#0f172a", fontSize: 13, textDecorationLine: "underline" },
   checkboxRow: { flexDirection: "row", gap: 10, alignItems: "center" },

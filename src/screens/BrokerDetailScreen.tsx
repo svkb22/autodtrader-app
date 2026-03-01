@@ -3,13 +3,14 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { NavigationProp, ParamListBase, useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
-import { alpacaDisconnect, getBrokerAccount, toApiError } from "@/api/client";
+import { activateSystem, alpacaDisconnect, getBrokerAccount, toApiError } from "@/api/client";
 import { BrokerAccount } from "@/api/types";
 import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
+import { BrokerMode, getActiveBrokerMode, setActiveBrokerMode } from "@/storage/brokerMode";
 
 type Props = {
-  navigation: { navigate: (route: "ConnectAlpaca") => void };
+  navigation: { navigate: (route: "ConnectAlpaca", params?: { mode?: BrokerMode }) => void };
 };
 
 const initialStatus: BrokerStatusResponse = {
@@ -22,6 +23,7 @@ const initialStatus: BrokerStatusResponse = {
 export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Element {
   const rootNavigation = useNavigation<NavigationProp<ParamListBase>>();
   const [status, setStatus] = useState<BrokerStatusResponse>(initialStatus);
+  const [activeMode, setActiveMode] = useState<BrokerMode>("paper");
   const [account, setAccount] = useState<BrokerAccount | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -31,9 +33,10 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
   const loadStatus = useCallback(async () => {
     setErrorText("");
     try {
-      const [next, nextAccount] = await Promise.all([getBrokerStatus(), getBrokerAccount()]);
+      const [next, nextAccount, mode] = await Promise.all([getBrokerStatus(), getBrokerAccount(), getActiveBrokerMode()]);
       setStatus(next);
       setAccount(nextAccount);
+      setActiveMode(mode);
     } catch (error) {
       setErrorText(toApiError(error));
     }
@@ -67,6 +70,29 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
     rootNavigation.getParent()?.getParent()?.navigate(route);
   };
 
+  const switchMode = (nextMode: BrokerMode) => {
+    if (activeMode === nextMode) return;
+    Alert.alert(
+      `Switch to ${nextMode === "live" ? "Live" : "Paper"}?`,
+      "Switching mode changes the orders, positions, and history you see and execute.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Switch",
+          onPress: async () => {
+            try {
+              await setActiveBrokerMode(nextMode);
+              await activateSystem(nextMode, { source: "broker_mode_switch" });
+              setActiveMode(nextMode);
+            } catch (error) {
+              setErrorText(toApiError(error));
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const disconnectNow = async () => {
     try {
       setDisconnecting(true);
@@ -98,12 +124,26 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
         <AlpacaLogoBadge size={52} />
         <View style={styles.headerTextWrap}>
           <Text style={styles.title}>Alpaca</Text>
-          <Text style={styles.subtitle}>Stocks-only connection and controls.</Text>
+          <Text style={styles.subtitle}>One account per environment. Paper + Live supported.</Text>
         </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Connection</Text>
+        <Text style={styles.sectionTitle}>Active Mode</Text>
+        <View style={styles.modeRow}>
+          <Pressable style={[styles.modePill, activeMode === "paper" && styles.modePillActive]} onPress={() => switchMode("paper")}>
+            <Text style={[styles.modeText, activeMode === "paper" && styles.modeTextActive]}>Paper</Text>
+          </Pressable>
+          {ENABLE_LIVE_BROKER ? (
+            <Pressable style={[styles.modePill, activeMode === "live" && styles.modePillActive]} onPress={() => switchMode("live")}>
+              <Text style={[styles.modeText, activeMode === "live" && styles.modeTextActive]}>Live</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Connection Slots</Text>
         {loading ? (
           <ActivityIndicator size="small" color="#64748b" />
         ) : (
@@ -127,34 +167,46 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
           </View>
         )}
 
-        {!anyConnected ? (
-          <Pressable style={styles.primaryButton} onPress={() => navigation.navigate("ConnectAlpaca")}>
-            <Text style={styles.primaryButtonText}>Connect Alpaca</Text>
+        <View style={styles.actionsWrap}>
+          <Pressable
+            style={[styles.rowButton, paperConnected && styles.rowButtonDisabled]}
+            onPress={() => navigation.navigate("ConnectAlpaca", { mode: "paper" })}
+            disabled={paperConnected}
+          >
+            <Text style={[styles.rowText, paperConnected && styles.rowTextDisabled]}>
+              {paperConnected ? "Paper Connected (single account supported)" : "Connect Paper"}
+            </Text>
+            {!paperConnected ? <Text style={styles.chevron}>›</Text> : null}
           </Pressable>
-        ) : (
-          <View style={styles.actionsWrap}>
-            <Pressable style={styles.rowButton} onPress={() => void loadStatus()}>
-              <Text style={styles.rowText}>Validate Connection</Text>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
-            <Pressable style={styles.rowButton} onPress={() => navigation.navigate("ConnectAlpaca")}>
-              <Text style={styles.rowText}>Reconnect / Change Account</Text>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
+
+          {ENABLE_LIVE_BROKER ? (
             <Pressable
-              style={[styles.rowButton, styles.rowButtonDanger, disconnecting && styles.disabled]}
-              onPress={onDisconnectPress}
-              disabled={disconnecting}
+              style={[styles.rowButton, liveConnected && styles.rowButtonDisabled]}
+              onPress={() => navigation.navigate("ConnectAlpaca", { mode: "live" })}
+              disabled={liveConnected}
             >
+              <Text style={[styles.rowText, liveConnected && styles.rowTextDisabled]}>
+                {liveConnected ? "Live Connected (single account supported)" : "Connect Live"}
+              </Text>
+              {!liveConnected ? <Text style={styles.chevron}>›</Text> : null}
+            </Pressable>
+          ) : null}
+
+          {anyConnected ? (
+            <Pressable style={[styles.rowButton, styles.rowButtonDanger, disconnecting && styles.disabled]} onPress={onDisconnectPress} disabled={disconnecting}>
               <Text style={styles.rowTextDanger}>{disconnecting ? "Disconnecting..." : "Disconnect Broker"}</Text>
               <Text style={styles.chevronDanger}>›</Text>
             </Pressable>
-          </View>
-        )}
+          ) : null}
+        </View>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Trading Settings</Text>
+        <Pressable style={styles.rowButton} onPress={() => void loadStatus()}>
+          <Text style={styles.rowText}>Validate Connection</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
         <Pressable style={styles.rowButton} onPress={() => openRootRoute("RiskSettings")}>
           <Text style={styles.rowText}>Risk Settings</Text>
           <Text style={styles.chevron}>›</Text>
@@ -201,6 +253,19 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionTitle: { fontSize: 16, fontWeight: "600", color: "#0f172a" },
+  modeRow: { flexDirection: "row", gap: 8 },
+  modePill: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modePillActive: { backgroundColor: "#0f172a", borderColor: "#0f172a" },
+  modeText: { color: "#334155", fontWeight: "600" },
+  modeTextActive: { color: "white" },
   statusWrap: { gap: 4 },
   statusLine: { color: "#334155", fontSize: 14 },
   accountMetaWrap: {
@@ -215,15 +280,6 @@ const styles = StyleSheet.create({
   accountMetaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   accountMetaLabel: { color: "#64748b", fontSize: 13 },
   accountMetaValue: { color: "#0f172a", fontSize: 13, fontWeight: "600" },
-  primaryButton: {
-    minHeight: 44,
-    borderRadius: 10,
-    backgroundColor: "#0f172a",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  primaryButtonText: { color: "white", fontWeight: "600" },
   actionsWrap: { gap: 8, marginTop: 2 },
   rowButton: {
     minHeight: 46,
@@ -236,11 +292,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  rowButtonDisabled: {
+    backgroundColor: "#f1f5f9",
+    borderColor: "#e2e8f0",
+  },
   rowButtonDanger: {
     borderColor: "#fecaca",
     backgroundColor: "#fff1f2",
   },
   rowText: { color: "#0f172a", fontWeight: "600" },
+  rowTextDisabled: { color: "#64748b" },
   rowTextDanger: { color: "#b91c1c", fontWeight: "700" },
   chevron: { color: "#64748b", fontSize: 20, lineHeight: 20 },
   chevronDanger: { color: "#b91c1c", fontSize: 20, lineHeight: 20 },

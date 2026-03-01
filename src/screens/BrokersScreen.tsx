@@ -6,9 +6,10 @@ import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
 import { toApiError } from "@/api/client";
 import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
+import { BrokerMode, getActiveBrokerMode } from "@/storage/brokerMode";
 
 type Props = {
-  navigation: { navigate: (route: "BrokerDetail" | "ConnectAlpaca") => void };
+  navigation: { navigate: (route: "BrokerDetail") => void };
 };
 
 const initialStatus: BrokerStatusResponse = {
@@ -20,6 +21,7 @@ const initialStatus: BrokerStatusResponse = {
 
 export default function BrokersScreen({ navigation }: Props): React.JSX.Element {
   const [status, setStatus] = useState<BrokerStatusResponse>(initialStatus);
+  const [activeMode, setActiveMode] = useState<BrokerMode>("paper");
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>("");
@@ -27,8 +29,9 @@ export default function BrokersScreen({ navigation }: Props): React.JSX.Element 
   const loadStatus = useCallback(async () => {
     setErrorText("");
     try {
-      const next = await getBrokerStatus();
+      const [next, mode] = await Promise.all([getBrokerStatus(), getActiveBrokerMode()]);
       setStatus(next);
+      setActiveMode(mode);
     } catch (error) {
       setErrorText(toApiError(error));
     }
@@ -56,12 +59,6 @@ export default function BrokersScreen({ navigation }: Props): React.JSX.Element 
   const paperConnected = status.alpaca.paper.connected;
   const liveConnected = ENABLE_LIVE_BROKER && status.alpaca.live.connected;
   const anyConnected = paperConnected || liveConnected;
-  const activeCount = anyConnected ? 1 : 0;
-
-  let subtitle = "Not connected";
-  if (paperConnected && liveConnected) subtitle = "Paper + Live connected";
-  else if (liveConnected) subtitle = "Live connected";
-  else if (paperConnected) subtitle = "Paper connected";
 
   return (
     <ScrollView
@@ -72,11 +69,8 @@ export default function BrokersScreen({ navigation }: Props): React.JSX.Element 
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.title}>Brokers</Text>
-          <Text style={styles.headerMeta}>{`${activeCount} active`}</Text>
+          <Text style={styles.headerMeta}>Alpaca slots: one Paper + one Live</Text>
         </View>
-        <Pressable accessibilityLabel="Add Broker" style={styles.connectButton} onPress={() => navigation.navigate("ConnectAlpaca")}>
-          <Text style={styles.connectButtonText}>Add Broker</Text>
-        </Pressable>
       </View>
 
       <Pressable style={styles.card} accessibilityLabel="Alpaca broker" onPress={() => navigation.navigate("BrokerDetail")}>
@@ -84,11 +78,23 @@ export default function BrokersScreen({ navigation }: Props): React.JSX.Element 
         <View style={[styles.statusDot, anyConnected ? styles.dotGreen : styles.dotGray]} />
         <View style={styles.info}>
           <Text style={styles.name}>Alpaca</Text>
-          {loading ? <ActivityIndicator size="small" color="#64748b" /> : <Text style={styles.subtitle}>{subtitle}</Text>}
+          {loading ? <ActivityIndicator size="small" color="#64748b" /> : <Text style={styles.subtitle}>Active mode: {activeMode === "live" ? "Live" : "Paper"}</Text>}
+          {!loading ? (
+            <Text style={styles.slotLine}>
+              Paper: {paperConnected ? "Connected" : "Connect"}
+              {ENABLE_LIVE_BROKER ? ` • Live: ${liveConnected ? "Connected" : "Connect"}` : ""}
+            </Text>
+          ) : null}
           {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
         </View>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
+
+      <View style={styles.noteCard}>
+        <Text style={styles.noteTitle}>Connection Limit</Text>
+        <Text style={styles.noteText}>Single paper account supported currently.</Text>
+        {ENABLE_LIVE_BROKER ? <Text style={styles.noteText}>Single live account supported currently.</Text> : null}
+      </View>
     </ScrollView>
   );
 }
@@ -99,15 +105,6 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { fontSize: 24, fontWeight: "700", color: "#0f172a" },
   headerMeta: { color: "#64748b", marginTop: 2 },
-  connectButton: {
-    minHeight: 40,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0f172a",
-  },
-  connectButtonText: { color: "white", fontWeight: "600" },
   card: {
     backgroundColor: "white",
     borderWidth: 1,
@@ -124,6 +121,17 @@ const styles = StyleSheet.create({
   info: { flex: 1, gap: 4 },
   name: { fontSize: 20, fontWeight: "600", color: "#0f172a" },
   subtitle: { color: "#475569", fontSize: 14 },
+  slotLine: { color: "#334155", fontSize: 13 },
   error: { color: "#b91c1c", fontSize: 12 },
   chevron: { color: "#94a3b8", fontSize: 22, lineHeight: 22 },
+  noteCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#ffffff",
+    padding: 12,
+    gap: 2,
+  },
+  noteTitle: { color: "#0f172a", fontWeight: "700", fontSize: 13 },
+  noteText: { color: "#64748b", fontSize: 12 },
 });

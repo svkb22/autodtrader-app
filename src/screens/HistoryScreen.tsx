@@ -6,8 +6,8 @@ import { getActivity } from "@/api/activity";
 import { getCurrentProposal } from "@/api/client";
 import { ActivityItem, ActivityRange, Proposal } from "@/api/types";
 import ErrorState from "@/components/ErrorState";
-import SystemSummaryCard from "@/components/SystemSummaryCard";
 import { toUnifiedFromActivity, toUnifiedFromPendingProposal, UnifiedActivityItem } from "@/domain/activityTypes";
+import { getActiveBrokerMode } from "@/storage/brokerMode";
 import { usd } from "@/utils/format";
 
 type PrimaryFilter = "trades" | "proposals";
@@ -81,6 +81,7 @@ export default function HistoryScreen(): React.JSX.Element {
   const [tradeFilter, setTradeFilter] = useState<TradeFilter>("open");
   const [proposalFilter, setProposalFilter] = useState<ProposalFilter>("all");
   const [range, setRange] = useState<ActivityRange>("1w");
+  const [activeMode, setActiveMode] = useState<"paper" | "live">("paper");
   const [items, setItems] = useState<UnifiedActivityItem[]>([]);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,12 +90,13 @@ export default function HistoryScreen(): React.JSX.Element {
     setRefreshing(true);
     setError(null);
     try {
-      const [activity, currentProposal] = await Promise.all([getActivity({ status: "all", range, limit: 200 }), getCurrentProposal()]);
+      const [activity, currentProposal, mode] = await Promise.all([getActivity({ status: "all", range, limit: 200 }), getCurrentProposal(), getActiveBrokerMode()]);
       const mapped = activity.items.map((item: ActivityItem) => toUnifiedFromActivity(item));
       const pendingProposal = currentProposal && currentProposal.status === "pending" ? toUnifiedFromPendingProposal(currentProposal as Proposal) : null;
       const merged = pendingProposal ? [pendingProposal, ...mapped] : mapped;
       merged.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
       setItems(merged);
+      setActiveMode(mode);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not load history.";
       setError(message);
@@ -132,6 +134,12 @@ export default function HistoryScreen(): React.JSX.Element {
     return `Showing: ${p} • ${s.charAt(0).toUpperCase()}${s.slice(1)} • ${range.toUpperCase()}`;
   }, [primary, proposalFilter, range, tradeFilter]);
 
+  const historyMetrics = useMemo(() => {
+    const closedTrades = items.filter((item) => item.kind === "TRADE" && item.statusLabel === "Closed Position");
+    const realized = closedTrades.reduce((sum, item) => sum + (typeof item.pnlValue === "number" ? item.pnlValue : 0), 0);
+    return { realized, closedCount: closedTrades.length };
+  }, [items]);
+
   const emptyLabel = primary === "trades" ? "No trades match this filter." : "No proposals match this filter.";
 
   return (
@@ -143,17 +151,19 @@ export default function HistoryScreen(): React.JSX.Element {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
       ListHeaderComponent={
         <View style={styles.headerWrap}>
-          <SystemSummaryCard />
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>History</Text>
+            <Text style={styles.modeChip}>{`Alpaca • ${activeMode === "live" ? "Live" : "Paper"}`}</Text>
+          </View>
 
-          <Text style={styles.title}>History</Text>
+          <View style={styles.metricsCard}>
+            <Text style={[styles.metricValue, { color: historyMetrics.realized >= 0 ? "#166534" : "#b91c1c" }]}>Realized P/L ({range.toUpperCase()}): {historyMetrics.realized >= 0 ? "+" : ""}{usd(historyMetrics.realized)}</Text>
+            <Text style={styles.metricSub}>Closed trades: {historyMetrics.closedCount}</Text>
+          </View>
 
           <View style={styles.pillRow}>
             {primaryFilters.map((filter) => (
-              <Pressable
-                key={filter.key}
-                style={[styles.pill, primary === filter.key && styles.pillActive]}
-                onPress={() => setPrimary(filter.key)}
-              >
+              <Pressable key={filter.key} style={[styles.pill, primary === filter.key && styles.pillActive]} onPress={() => setPrimary(filter.key)}>
                 <Text style={[styles.pillText, primary === filter.key && styles.pillTextActive]}>{filter.label}</Text>
               </Pressable>
             ))}
@@ -180,11 +190,7 @@ export default function HistoryScreen(): React.JSX.Element {
 
           <View style={styles.pillRow}>
             {ranges.map((filter) => (
-              <Pressable
-                key={filter.key}
-                style={[styles.pill, range === filter.key && styles.pillActive]}
-                onPress={() => setRange(filter.key)}
-              >
+              <Pressable key={filter.key} style={[styles.pill, range === filter.key && styles.pillActive]} onPress={() => setRange(filter.key)}>
                 <Text style={[styles.pillText, range === filter.key && styles.pillTextActive]}>{filter.label}</Text>
               </Pressable>
             ))}
@@ -237,7 +243,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f1f5f9" },
   content: { padding: 16, gap: 10, paddingBottom: 24 },
   headerWrap: { gap: 10, marginBottom: 6 },
+  titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   title: { fontSize: 24, fontWeight: "800", color: "#0f172a" },
+  modeChip: {
+    color: "#334155",
+    fontSize: 11,
+    fontWeight: "700",
+    backgroundColor: "#e2e8f0",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  metricsCard: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 12,
+    gap: 4,
+  },
+  metricValue: { fontSize: 16, fontWeight: "800" },
+  metricSub: { color: "#334155", fontSize: 13, fontWeight: "600" },
   pillRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   pill: {
     paddingHorizontal: 12,
