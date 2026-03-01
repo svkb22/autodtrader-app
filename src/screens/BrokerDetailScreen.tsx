@@ -102,8 +102,12 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
       if (liveConnected) modes.push("live");
 
       if (modes.length > 0) {
+        const paperAccountId = status.alpaca.paper.accountId ?? null;
+        const liveAccountId = status.alpaca.live.accountId ?? null;
+        const fallbackAccountId = account?.id ?? null;
         for (const mode of modes) {
-          await alpacaDisconnect(mode);
+          const accountId = mode === "paper" ? paperAccountId ?? fallbackAccountId : liveAccountId ?? fallbackAccountId;
+          await alpacaDisconnect({ mode, accountId });
         }
       } else {
         await alpacaDisconnect();

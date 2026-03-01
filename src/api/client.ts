@@ -306,7 +306,44 @@ function isDisconnectContractMismatch(error: unknown): boolean {
   return status === 400 || status === 404 || status === 405 || status === 415 || status === 422;
 }
 
-export async function alpacaDisconnect(mode?: "paper" | "live"): Promise<{ disconnected: boolean }> {
+function isModeConnectedInStatus(payload: unknown, mode: "paper" | "live"): boolean | null {
+  const data = (payload ?? {}) as {
+    alpaca?: { paper?: { connected?: boolean }; live?: { connected?: boolean } };
+    connected?: boolean;
+    mode?: "paper" | "live" | null;
+  };
+
+  if (data.alpaca && typeof data.alpaca[mode]?.connected === "boolean") {
+    return Boolean(data.alpaca[mode]?.connected);
+  }
+
+  if (typeof data.connected === "boolean") {
+    if (!data.connected) return false;
+    if (data.mode === "paper" || data.mode === "live") {
+      return data.mode === mode;
+    }
+    return true;
+  }
+
+  return null;
+}
+
+async function verifyDisconnected(mode?: "paper" | "live"): Promise<boolean> {
+  if (!mode) return true;
+  const statusRes = await api.get<unknown>("/broker/status");
+  const connected = isModeConnectedInStatus(statusRes.data, mode);
+  return connected === false;
+}
+
+type DisconnectOptions = {
+  mode?: "paper" | "live";
+  accountId?: string | null;
+};
+
+export async function alpacaDisconnect(options?: DisconnectOptions): Promise<{ disconnected: boolean }> {
+  const mode = options?.mode;
+  const accountId = options?.accountId ?? null;
+
   if (USE_MOCKS) {
     brokerConnected = false;
     brokerMode = "paper";
@@ -316,21 +353,29 @@ export async function alpacaDisconnect(mode?: "paper" | "live"): Promise<{ disco
 
   const attempts: Array<() => Promise<{ data: { disconnected: boolean } }>> = mode
     ? [
-        () => api.post("/broker/alpaca/disconnect", { mode }),
-        () => api.post("/broker/alpaca/disconnect", { env: mode }),
+        () => api.post("/broker/alpaca/disconnect", { mode, accountId }),
+        () => api.post("/broker/alpaca/disconnect", { mode, account_id: accountId }),
+        () => api.post("/broker/alpaca/disconnect", { env: mode, accountId }),
+        () => api.post("/broker/alpaca/disconnect", { env: mode, account_id: accountId }),
         () => api.post("/broker/alpaca/disconnect", undefined, { params: { mode } }),
         () => api.post("/broker/alpaca/disconnect", undefined, { params: { env: mode } }),
+        () => api.delete("/broker/alpaca/disconnect", { data: { mode, accountId } }),
+        () => api.delete("/broker/alpaca/disconnect", { data: { mode, account_id: accountId } }),
         () => api.post("/broker/alpaca/disconnect"),
       ]
-    : [() => api.post("/broker/alpaca/disconnect")];
+    : [() => api.post("/broker/alpaca/disconnect"), () => api.delete("/broker/alpaca/disconnect")];
 
   let lastError: unknown = null;
   for (const attempt of attempts) {
     try {
       const res = await attempt();
-      cachedBrokerAccount = null;
-      brokerMode = "paper";
-      return res.data;
+      const disconnected = await verifyDisconnected(mode);
+      if (disconnected) {
+        cachedBrokerAccount = null;
+        brokerMode = "paper";
+        return res.data;
+      }
+      lastError = new Error(`Disconnect acknowledged but ${mode} slot is still connected`);
     } catch (error) {
       lastError = error;
       if (!isDisconnectContractMismatch(error)) {
