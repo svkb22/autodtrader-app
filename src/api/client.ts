@@ -300,17 +300,46 @@ export async function alpacaConnect(env: "paper" | "live", apiKey: string, apiSe
   return res.data;
 }
 
-export async function alpacaDisconnect(): Promise<{ disconnected: boolean }> {
+function isDisconnectContractMismatch(error: unknown): boolean {
+  const axiosError = error as AxiosError;
+  const status = axiosError?.response?.status;
+  return status === 400 || status === 404 || status === 405 || status === 415 || status === 422;
+}
+
+export async function alpacaDisconnect(mode?: "paper" | "live"): Promise<{ disconnected: boolean }> {
   if (USE_MOCKS) {
     brokerConnected = false;
     brokerMode = "paper";
     cachedBrokerAccount = null;
     return mockDelay({ disconnected: true });
   }
-  const res = await api.post("/broker/alpaca/disconnect");
-  cachedBrokerAccount = null;
-  brokerMode = "paper";
-  return res.data;
+
+  const attempts: Array<() => Promise<{ data: { disconnected: boolean } }>> = mode
+    ? [
+        () => api.post("/broker/alpaca/disconnect", { mode }),
+        () => api.post("/broker/alpaca/disconnect", { env: mode }),
+        () => api.post("/broker/alpaca/disconnect", undefined, { params: { mode } }),
+        () => api.post("/broker/alpaca/disconnect", undefined, { params: { env: mode } }),
+        () => api.post("/broker/alpaca/disconnect"),
+      ]
+    : [() => api.post("/broker/alpaca/disconnect")];
+
+  let lastError: unknown = null;
+  for (const attempt of attempts) {
+    try {
+      const res = await attempt();
+      cachedBrokerAccount = null;
+      brokerMode = "paper";
+      return res.data;
+    } catch (error) {
+      lastError = error;
+      if (!isDisconnectContractMismatch(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError ?? new Error("Disconnect failed");
 }
 
 export async function alpacaConnectWithCredentials(

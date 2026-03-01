@@ -97,7 +97,19 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
     try {
       setDisconnecting(true);
       setErrorText("");
-      await alpacaDisconnect();
+      const modes: BrokerMode[] = [];
+      if (paperConnected) modes.push("paper");
+      if (liveConnected) modes.push("live");
+
+      if (modes.length > 0) {
+        for (const mode of modes) {
+          await alpacaDisconnect(mode);
+        }
+      } else {
+        await alpacaDisconnect();
+      }
+
+      await setActiveBrokerMode("paper");
       await loadStatus();
       Alert.alert("Disconnected", "Alpaca broker has been disconnected.");
     } catch (error) {
