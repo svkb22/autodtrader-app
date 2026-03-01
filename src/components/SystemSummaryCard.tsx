@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { getBrokerStatus, getOrderOutcomes, getRecentOrders, getRisk } from "@/api/client";
+import { getActivity } from "@/api/activity";
+import { getBrokerStatus, getRecentOrders, getRisk } from "@/api/client";
+import { ActivityItem } from "@/api/types";
 import { usd } from "@/utils/format";
 
 type Snapshot = {
@@ -19,16 +21,20 @@ function isTodayLocal(iso: string): boolean {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
 
+function isOpenPosition(item: ActivityItem): boolean {
+  return item.status === "open" || (item.status === "executed" && !item.exit_fill_price && item.realized_pnl == null);
+}
+
 export default function SystemSummaryCard(): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [risk, brokerStatus, orders, outcomes] = await Promise.all([
+      const [risk, brokerStatus, orders, activity] = await Promise.all([
         getRisk(),
         getBrokerStatus(),
         getRecentOrders(),
-        getOrderOutcomes(),
+        getActivity({ status: "all", range: "all", limit: 200 }),
       ]);
 
       const riskUsedTodayUsd = orders
@@ -39,7 +45,7 @@ export default function SystemSummaryCard(): React.JSX.Element {
           return sum + Math.max(0, Math.abs(entry - stop) * order.qty);
         }, 0);
 
-      const openPositions = Object.values(outcomes).filter((outcome) => outcome.state === "open").length;
+      const openPositions = activity.items.filter(isOpenPosition).length;
       const mode = brokerStatus.connected
         ? brokerStatus.mode === "live"
           ? "Live"
