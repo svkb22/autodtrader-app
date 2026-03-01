@@ -1,9 +1,9 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NavigationProp, ParamListBase, useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
-import { getBrokerAccount, toApiError } from "@/api/client";
+import { alpacaDisconnect, getBrokerAccount, toApiError } from "@/api/client";
 import { BrokerAccount } from "@/api/types";
 import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
@@ -25,6 +25,7 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
   const [account, setAccount] = useState<BrokerAccount | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [disconnecting, setDisconnecting] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>("");
 
   const loadStatus = useCallback(async () => {
@@ -59,10 +60,32 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
 
   const paperConnected = status.alpaca.paper.connected;
   const liveConnected = ENABLE_LIVE_BROKER && status.alpaca.live.connected;
+  const anyConnected = paperConnected || liveConnected;
   const connectedAccountId = status.alpaca.live.accountId ?? status.alpaca.paper.accountId ?? account?.id ?? null;
 
   const openRootRoute = (route: "RiskSettings" | "AutoExecuteSettings") => {
     rootNavigation.getParent()?.getParent()?.navigate(route);
+  };
+
+  const disconnectNow = async () => {
+    try {
+      setDisconnecting(true);
+      setErrorText("");
+      await alpacaDisconnect();
+      await loadStatus();
+      Alert.alert("Disconnected", "Alpaca broker has been disconnected.");
+    } catch (error) {
+      setErrorText(toApiError(error));
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const onDisconnectPress = () => {
+    Alert.alert("Disconnect Broker", "Remove this Alpaca connection from the app?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Disconnect", style: "destructive", onPress: () => void disconnectNow() },
+    ]);
   };
 
   return (
@@ -103,9 +126,31 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
             ) : null}
           </View>
         )}
-        <Pressable style={styles.primaryButton} onPress={() => navigation.navigate("ConnectAlpaca")}>
-          <Text style={styles.primaryButtonText}>{paperConnected || liveConnected ? "Manage Connection" : "Connect Alpaca"}</Text>
-        </Pressable>
+
+        {!anyConnected ? (
+          <Pressable style={styles.primaryButton} onPress={() => navigation.navigate("ConnectAlpaca")}>
+            <Text style={styles.primaryButtonText}>Connect Alpaca</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.actionsWrap}>
+            <Pressable style={styles.rowButton} onPress={() => void loadStatus()}>
+              <Text style={styles.rowText}>Validate Connection</Text>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+            <Pressable style={styles.rowButton} onPress={() => navigation.navigate("ConnectAlpaca")}>
+              <Text style={styles.rowText}>Reconnect / Change Account</Text>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.rowButton, styles.rowButtonDanger, disconnecting && styles.disabled]}
+              onPress={onDisconnectPress}
+              disabled={disconnecting}
+            >
+              <Text style={styles.rowTextDanger}>{disconnecting ? "Disconnecting..." : "Disconnect Broker"}</Text>
+              <Text style={styles.chevronDanger}>›</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       <View style={styles.card}>
@@ -179,6 +224,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   primaryButtonText: { color: "white", fontWeight: "600" },
+  actionsWrap: { gap: 8, marginTop: 2 },
   rowButton: {
     minHeight: 46,
     borderRadius: 10,
@@ -190,7 +236,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  rowButtonDanger: {
+    borderColor: "#fecaca",
+    backgroundColor: "#fff1f2",
+  },
   rowText: { color: "#0f172a", fontWeight: "600" },
+  rowTextDanger: { color: "#b91c1c", fontWeight: "700" },
   chevron: { color: "#64748b", fontSize: 20, lineHeight: 20 },
+  chevronDanger: { color: "#b91c1c", fontSize: 20, lineHeight: 20 },
   error: { color: "#b91c1c", fontSize: 13 },
+  disabled: { opacity: 0.6 },
 });
