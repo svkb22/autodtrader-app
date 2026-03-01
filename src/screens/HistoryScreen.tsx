@@ -1,68 +1,82 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
-import { getCurrentProposal, getOrderOutcomes, getProposalsHistory, toApiError } from "@/api/client";
-import { OrderOutcome, Proposal, ProposalHistoryItem } from "@/api/types";
+import { getActivity } from "@/api/activity";
+import { getCurrentProposal } from "@/api/client";
+import { ActivityItem, ActivityRange, Proposal } from "@/api/types";
 import ErrorState from "@/components/ErrorState";
+import SystemSummaryCard from "@/components/SystemSummaryCard";
+import { toUnifiedFromActivity, toUnifiedFromPendingProposal, UnifiedActivityItem } from "@/domain/activityTypes";
 import { usd } from "@/utils/format";
+
+type PrimaryFilter = "trades" | "proposals";
+type TradeFilter = "open" | "closed" | "all";
+type ProposalFilter = "pending" | "expired" | "rejected" | "all";
 
 type Nav = {
   navigate: (screen: "ProposalDetail", params: { proposalId: string }) => void;
 };
 
-type Section = { title: string; data: ProposalHistoryItem[] };
+const primaryFilters: Array<{ key: PrimaryFilter; label: string }> = [
+  { key: "trades", label: "Trades" },
+  { key: "proposals", label: "Proposals" },
+];
 
-function toDayLabel(iso: string): string {
+const tradeFilters: Array<{ key: TradeFilter; label: string }> = [
+  { key: "open", label: "Open" },
+  { key: "closed", label: "Closed" },
+  { key: "all", label: "All" },
+];
+
+const proposalFilters: Array<{ key: ProposalFilter; label: string }> = [
+  { key: "pending", label: "Pending" },
+  { key: "expired", label: "Expired" },
+  { key: "rejected", label: "Rejected" },
+  { key: "all", label: "All" },
+];
+
+const ranges: Array<{ key: ActivityRange; label: string }> = [
+  { key: "1w", label: "1W" },
+  { key: "1m", label: "1M" },
+  { key: "all", label: "All" },
+];
+
+function chipToneColor(tone: UnifiedActivityItem["statusTone"]): { fg: string; bg: string } {
+  if (tone === "green") return { fg: "#166534", bg: "#dcfce7" };
+  if (tone === "amber") return { fg: "#b45309", bg: "#fef3c7" };
+  if (tone === "blue") return { fg: "#1d4ed8", bg: "#dbeafe" };
+  return { fg: "#475569", bg: "#e2e8f0" };
+}
+
+function formatDateCompact(iso: string): string {
   const d = new Date(iso);
-  const today = new Date();
-  const y = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const same = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
-  if (same(d, today)) return "Today";
-  if (same(d, y)) return "Yesterday";
-  return d.toLocaleDateString();
+  if (Number.isNaN(d.getTime())) return iso;
+  const month = d.toLocaleDateString(undefined, { month: "short" });
+  const day = d.getDate();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return `${month} ${day} • ${time}`;
 }
 
-function statusBadge(status: string): string {
-  if (status === "pending") return "Active";
-  if (status === "executed" || status === "approved") return "Executed";
-  if (status === "expired") return "Expired";
-  if (status === "rejected") return "Rejected";
-  if (status === "blocked") return "Blocked";
-  return status;
+function isOpenTrade(item: UnifiedActivityItem): boolean {
+  return item.kind === "TRADE" && item.statusLabel === "Open Position";
 }
 
-function badgeColor(status: string): string {
-  if (status === "executed" || status === "approved") return "#166534";
-  if (status === "expired") return "#92400e";
-  if (status === "rejected" || status === "blocked") return "#991b1b";
-  return "#334155";
+function isClosedTrade(item: UnifiedActivityItem): boolean {
+  return item.kind === "TRADE" && item.statusLabel === "Closed Position";
 }
 
-const sampleCards = [
-  {
-    id: "sample-1",
-    title: "BUY AAPL",
-    status: "Executed",
-    strength: "Strong",
-    line: "P/L +$24.80",
-  },
-  {
-    id: "sample-2",
-    title: "BUY NVDA",
-    status: "Expired",
-    strength: "Strong",
-    line: "Expired - no action taken",
-  },
-] as const;
+function isPendingProposal(item: UnifiedActivityItem): boolean {
+  return item.kind === "PROPOSAL" && item.statusLabel === "Pending";
+}
 
 export default function HistoryScreen(): React.JSX.Element {
   const navigation = useNavigation<Nav>();
-  const [activeProposal, setActiveProposal] = useState<Proposal | null>(null);
-  const [items, setItems] = useState<ProposalHistoryItem[]>([]);
-  const [outcomes, setOutcomes] = useState<Record<string, OrderOutcome>>({});
+  const [primary, setPrimary] = useState<PrimaryFilter>("trades");
+  const [tradeFilter, setTradeFilter] = useState<TradeFilter>("open");
+  const [proposalFilter, setProposalFilter] = useState<ProposalFilter>("all");
+  const [range, setRange] = useState<ActivityRange>("1w");
+  const [items, setItems] = useState<UnifiedActivityItem[]>([]);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,154 +84,195 @@ export default function HistoryScreen(): React.JSX.Element {
     setRefreshing(true);
     setError(null);
     try {
-      const [history, current, outcomesData] = await Promise.all([
-        getProposalsHistory(80),
-        getCurrentProposal(),
-        getOrderOutcomes(),
-      ]);
-      setItems(history.items);
-      setActiveProposal(current);
-      setOutcomes(outcomesData);
-    } catch (errorValue) {
-      setError(toApiError(errorValue));
+      const [activity, currentProposal] = await Promise.all([getActivity({ status: "all", range, limit: 200 }), getCurrentProposal()]);
+      const mapped = activity.items.map((item: ActivityItem) => toUnifiedFromActivity(item));
+      const pendingProposal = currentProposal && currentProposal.status === "pending" ? toUnifiedFromPendingProposal(currentProposal as Proposal) : null;
+      const merged = pendingProposal ? [pendingProposal, ...mapped] : mapped;
+      merged.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      setItems(merged);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not load history.";
+      setError(message);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [range]);
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
     }, [load])
   );
 
-  const activeId = activeProposal?.id ?? null;
-  const timelineItems = useMemo(() => items.filter((i) => i.id !== activeId), [items, activeId]);
+  const filtered = useMemo(() => {
+    let next = items;
 
-  const sections: Section[] = useMemo(() => {
-    const map = new Map<string, ProposalHistoryItem[]>();
-    for (const item of timelineItems) {
-      const label = toDayLabel(item.created_at);
-      const arr = map.get(label) ?? [];
-      arr.push(item);
-      map.set(label, arr);
+    if (primary === "trades") {
+      next = next.filter((item) => item.kind === "TRADE");
+      if (tradeFilter === "open") next = next.filter(isOpenTrade);
+      if (tradeFilter === "closed") next = next.filter(isClosedTrade);
+    } else {
+      next = next.filter((item) => item.kind === "PROPOSAL");
+      if (proposalFilter === "pending") next = next.filter(isPendingProposal);
+      if (proposalFilter === "expired") next = next.filter((item) => item.statusLabel === "Expired");
+      if (proposalFilter === "rejected") next = next.filter((item) => item.statusLabel === "Rejected");
     }
-    return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
-  }, [timelineItems]);
 
-  const activeItem = useMemo(() => {
-    if (!activeProposal) return null;
-    return items.find((i) => i.id === activeProposal.id) ?? null;
-  }, [items, activeProposal]);
+    return next;
+  }, [items, primary, proposalFilter, tradeFilter]);
 
-  const renderRow = (item: ProposalHistoryItem) => {
-    const outcome = outcomes[item.id];
-    const pnl = outcome ? outcome.realized_pnl + outcome.unrealized_pnl : null;
+  const showingLabel = useMemo(() => {
+    const p = primary === "trades" ? "Trades" : "Proposals";
+    const s = primary === "trades" ? tradeFilter : proposalFilter;
+    return `Showing: ${p} • ${s.charAt(0).toUpperCase()}${s.slice(1)} • ${range.toUpperCase()}`;
+  }, [primary, proposalFilter, range, tradeFilter]);
 
-    return (
-      <Pressable key={item.id} style={styles.card} onPress={() => navigation.navigate("ProposalDetail", { proposalId: item.id })}>
-        <Text style={styles.symbol}>{item.side.toUpperCase()} {item.symbol}</Text>
-        <View style={styles.metaRow}>
-          <Text style={[styles.badge, { color: badgeColor(item.status) }]}>{statusBadge(item.status)}</Text>
-          <Text style={styles.strength}>{item.strength === "strong" ? "Strong" : item.strength === "medium" ? "Medium" : "Low"}</Text>
-        </View>
-
-        {item.status === "executed" || item.status === "approved" ? (
-          <Text style={[styles.line, pnl == null ? null : { color: pnl >= 0 ? "#166534" : "#b91c1c" }]}>
-            {pnl == null ? (item.order_summary?.filled_at ? "Filled" : "In progress") : `P/L ${usd(pnl)}`}
-          </Text>
-        ) : (
-          <Text style={styles.reason}>{item.reason ?? "No additional details."}</Text>
-        )}
-      </Pressable>
-    );
-  };
-
-  const renderSampleCards = () => (
-    <View style={styles.samplesWrap}>
-      <Text style={styles.samplesHeader}>Samples</Text>
-      {sampleCards.map((sample) => (
-        <View key={sample.id} style={[styles.card, styles.sampleCard]}>
-          <View style={styles.sampleHeaderRow}>
-            <Text style={styles.symbol}>{sample.title}</Text>
-            <Text style={styles.sampleTag}>Sample</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={[styles.badge, { color: "#64748b" }]}>{sample.status}</Text>
-            <Text style={styles.strength}>{sample.strength}</Text>
-          </View>
-          <Text style={styles.reason}>{sample.line}</Text>
-        </View>
-      ))}
-    </View>
-  );
+  const emptyLabel = primary === "trades" ? "No trades match this filter." : "No proposals match this filter.";
 
   return (
-    <View style={styles.container}>
-      {error ? <ErrorState message={error} onRetry={load} /> : null}
+    <FlatList
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      data={filtered}
+      keyExtractor={(item) => `${item.kind}-${item.id}`}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
+      ListHeaderComponent={
+        <View style={styles.headerWrap}>
+          <SystemSummaryCard />
 
-      {activeItem ? (
-        <View style={styles.activeWrap}>
-          <Text style={styles.sectionHeader}>Active</Text>
-          {renderRow(activeItem)}
-        </View>
-      ) : null}
+          <Text style={styles.title}>History</Text>
 
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
-        contentContainerStyle={styles.list}
-        stickySectionHeadersEnabled={false}
-        ListEmptyComponent={
-          <View>
-            <Text style={styles.empty}>No activity yet.</Text>
-            {renderSampleCards()}
+          <View style={styles.pillRow}>
+            {primaryFilters.map((filter) => (
+              <Pressable
+                key={filter.key}
+                style={[styles.pill, primary === filter.key && styles.pillActive]}
+                onPress={() => setPrimary(filter.key)}
+              >
+                <Text style={[styles.pillText, primary === filter.key && styles.pillTextActive]}>{filter.label}</Text>
+              </Pressable>
+            ))}
           </View>
-        }
-        renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
-        renderItem={({ item }) => renderRow(item)}
-      />
-    </View>
+
+          <View style={styles.pillRow}>
+            {(primary === "trades" ? tradeFilters : proposalFilters).map((filter) => {
+              const key = filter.key as string;
+              const selected = primary === "trades" ? tradeFilter === key : proposalFilter === key;
+              return (
+                <Pressable
+                  key={filter.key}
+                  style={[styles.pill, selected && styles.pillActive]}
+                  onPress={() => {
+                    if (primary === "trades") setTradeFilter(key as TradeFilter);
+                    else setProposalFilter(key as ProposalFilter);
+                  }}
+                >
+                  <Text style={[styles.pillText, selected && styles.pillTextActive]}>{filter.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.pillRow}>
+            {ranges.map((filter) => (
+              <Pressable
+                key={filter.key}
+                style={[styles.pill, range === filter.key && styles.pillActive]}
+                onPress={() => setRange(filter.key)}
+              >
+                <Text style={[styles.pillText, range === filter.key && styles.pillTextActive]}>{filter.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.showing}>{showingLabel}</Text>
+          {error ? <ErrorState message={error} onRetry={load} /> : null}
+        </View>
+      }
+      ListEmptyComponent={
+        <View style={styles.emptyWrap}>
+          <Text style={styles.emptyText}>{emptyLabel}</Text>
+        </View>
+      }
+      renderItem={({ item }) => {
+        const tone = chipToneColor(item.statusTone);
+        const pnlColor = (item.pnlValue ?? 0) >= 0 ? "#166534" : "#b91c1c";
+        const pnlText = typeof item.pnlValue === "number" ? `${item.pnlValue >= 0 ? "+" : ""}${usd(item.pnlValue)}` : null;
+        const riskText = typeof item.riskUsedUsd === "number" ? usd(item.riskUsedUsd) : "-";
+
+        return (
+          <Pressable
+            style={styles.card}
+            onPress={() => {
+              if (item.kind === "PROPOSAL") {
+                navigation.navigate("ProposalDetail", { proposalId: item.id });
+              }
+            }}
+          >
+            <View style={styles.row1}>
+              <Text style={styles.cardTitle}>{item.symbol} • {item.side === "long" ? "Long" : "Short"}</Text>
+              <Text style={[styles.chip, { color: tone.fg, backgroundColor: tone.bg }]}>{item.statusLabel}</Text>
+            </View>
+
+            <Text style={styles.row2}>
+              {item.summary}
+              {pnlText ? <Text style={{ color: pnlColor }}>{` • ${pnlText}`}</Text> : null}
+            </Text>
+
+            <Text style={styles.row3}>{`${formatDateCompact(item.createdAt)} • Risk ${riskText}`}</Text>
+            {item.entryPrice ? <Text style={styles.meta}>Entry {usd(item.entryPrice)}{item.exitPrice ? ` → Exit ${usd(item.exitPrice)}` : ""}</Text> : null}
+          </Pressable>
+        );
+      }}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  list: { padding: 16, gap: 8 },
-  empty: { textAlign: "center", marginTop: 24, color: "#64748b", marginBottom: 12 },
-  activeWrap: { paddingHorizontal: 16, paddingTop: 12 },
-  sectionHeader: { color: "#0f172a", fontWeight: "800", fontSize: 16, marginBottom: 6 },
-  card: {
+  container: { flex: 1, backgroundColor: "#f1f5f9" },
+  content: { padding: 16, gap: 10, paddingBottom: 24 },
+  headerWrap: { gap: 10, marginBottom: 6 },
+  title: { fontSize: 24, fontWeight: "800", color: "#0f172a" },
+  pillRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  pill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "#e2e8f0",
+  },
+  pillActive: {
+    backgroundColor: "#0f172a",
+  },
+  pillText: { color: "#334155", fontWeight: "700", fontSize: 12 },
+  pillTextActive: { color: "#ffffff" },
+  showing: { color: "#475569", fontSize: 12, fontWeight: "600" },
+  emptyWrap: {
     backgroundColor: "white",
-    borderRadius: 12,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    padding: 12,
-    gap: 4,
-    marginBottom: 8,
+    padding: 18,
   },
-  sampleCard: {
-    backgroundColor: "#f1f5f9",
-    borderColor: "#cbd5e1",
-  },
-  sampleHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sampleTag: {
-    fontSize: 11,
-    color: "#475569",
+  emptyText: { color: "#64748b" },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#94a3b8",
+    borderColor: "#dbe3ef",
+    padding: 14,
+    gap: 7,
+  },
+  row1: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  cardTitle: { color: "#0f172a", fontSize: 21, fontWeight: "800" },
+  chip: {
+    fontSize: 11,
+    fontWeight: "800",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
     overflow: "hidden",
   },
-  samplesWrap: { marginTop: 4 },
-  samplesHeader: { color: "#334155", fontWeight: "700", marginBottom: 6 },
-  symbol: { fontSize: 18, fontWeight: "800", color: "#111827" },
-  metaRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  badge: { fontWeight: "700" },
-  strength: { color: "#475569", fontWeight: "600" },
-  line: { color: "#334155" },
-  reason: { color: "#64748b" },
+  row2: { color: "#334155", fontWeight: "700", fontSize: 16 },
+  row3: { color: "#64748b", fontSize: 13, fontWeight: "600" },
+  meta: { color: "#64748b", fontSize: 12 },
 });

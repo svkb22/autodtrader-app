@@ -4,6 +4,7 @@ import { Alert, Animated, LayoutAnimation, Linking, Platform, Pressable, StyleSh
 import { approveProposal, getBrokerAccount, getCurrentProposal, getOrderOutcomes, getProposalById, rejectProposal, toApiError } from "@/api/client";
 import { BrokerAccount, OrderOutcome, Proposal, ProposalDecisionResult } from "@/api/types";
 import Countdown from "@/components/Countdown";
+import SystemSummaryCard from "@/components/SystemSummaryCard";
 import MiniSparkline from "@/components/MiniSparkline";
 import { signedPct, usd, usdCompact } from "@/utils/format";
 import { isExpired } from "@/utils/time";
@@ -149,8 +150,11 @@ export default function ProposalScreen({ route }: Props): React.JSX.Element {
 
   if (!proposal) {
     return (
-      <View style={styles.center}>
-        <Text>No active proposal</Text>
+      <View style={styles.container}>
+        <SystemSummaryCard />
+        <View style={styles.center}>
+          <Text>No active proposal</Text>
+        </View>
       </View>
     );
   }
@@ -166,6 +170,7 @@ export default function ProposalScreen({ route }: Props): React.JSX.Element {
 
   return (
     <View style={styles.container}>
+      <SystemSummaryCard />
       <View style={styles.card}>
         <View style={styles.headRow}>
           <Text style={styles.side}>BUY {proposal.symbol}</Text>
@@ -195,6 +200,7 @@ export default function ProposalScreen({ route }: Props): React.JSX.Element {
 
         <Text style={styles.label}>Expires In</Text>
         <Countdown expiresAtISO={proposal.expires_at} onExpire={load} />
+        <Text style={styles.sectionTitle}>Action Required</Text>
         {!canAct ? (
           <Text style={styles.statusText}>
             Status: {proposal.status === "pending" ? "expired" : proposal.status}
@@ -371,6 +377,7 @@ const styles = StyleSheet.create({
   whyLine: { color: "#334155" },
   meta: { color: "#1f2937", fontWeight: "600" },
   label: { color: "#334155", fontWeight: "600", marginTop: 2 },
+  sectionTitle: { color: "#0f172a", fontWeight: "800", marginTop: 6 },
   statusText: { color: "#b91c1c", fontWeight: "700" },
   debugBanner: {
     marginTop: 8,

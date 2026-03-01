@@ -16,8 +16,8 @@ import ConnectAlpacaScreen from "@/screens/ConnectAlpacaScreen";
 import ConnectBrokerScreen from "@/screens/ConnectBrokerScreen";
 import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
-import ActivityScreen from "@/screens/ActivityScreen";
-import HomeScreen from "@/screens/HomeScreen";
+import HistoryScreen from "@/screens/HistoryScreen";
+import PositionsScreen from "@/screens/PositionsScreen";
 import ProposalDetailScreen from "@/screens/ProposalDetailScreen";
 import ProposalScreen from "@/screens/ProposalScreen";
 import RiskSettingsScreen from "@/screens/RiskSettingsScreen";
@@ -62,22 +62,29 @@ function AppTabs(): React.JSX.Element {
   return (
     <Tabs.Navigator>
       <Tabs.Screen
-        name="Home"
-        component={HomeScreen}
+        name="Proposals"
+        component={ProposalScreen}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} size={size} color={color} />
+            <Ionicons name={focused ? "clipboard" : "clipboard-outline"} size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="Activity"
-        component={ActivityScreen}
+        name="Positions"
+        component={PositionsScreen}
         options={{
-          title: "Activity",
-          tabBarLabel: "Activity",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "document-text" : "document-text-outline"} size={size} color={color} />
+            <Ionicons name={focused ? "trending-up" : "trending-up-outline"} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "time" : "time-outline"} size={size} color={color} />
           ),
         }}
       />

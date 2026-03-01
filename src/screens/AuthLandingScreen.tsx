@@ -49,7 +49,7 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
       const accessToken = result.authentication?.accessToken ?? result.params?.access_token ?? null;
 
       if (!idToken && !accessToken) {
-        setErrorText("Google auth returned no token. Check Google OAuth client IDs.");
+        setErrorText("Google auth returned no token.");
         return;
       }
 
@@ -63,8 +63,9 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome</Text>
-      <Text style={styles.subtitle}>Low-frequency. You stay in control.</Text>
+      <Text style={styles.title}>Systematic trading. Built for control.</Text>
+      <Text style={styles.subtitle}>Low-frequency setups. Disciplined execution. You approve every trade.</Text>
+      <Text style={styles.trust}>Secure OAuth authentication. Broker credentials are never stored.</Text>
 
       {enableGoogleLogin ? (
         <Pressable
@@ -92,11 +93,6 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
         <Text style={styles.primaryText}>Continue with Email</Text>
       </Pressable>
 
-      {enableGoogleLogin && !googleConfigured ? (
-        <Text style={styles.helper}>
-          Google is not fully configured. Set EXPO_PUBLIC_GOOGLE_* and Firebase EXPO_PUBLIC_FIREBASE_* env vars.
-        </Text>
-      ) : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
     </View>
   );
@@ -112,12 +108,17 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 30,
+    lineHeight: 38,
     fontWeight: "700",
     color: "#0f172a",
   },
   subtitle: {
     fontSize: 14,
-    color: "#475569",
+    color: "#334155",
+  },
+  trust: {
+    fontSize: 12,
+    color: "#64748b",
     marginBottom: 8,
   },
   googleButton: {
@@ -140,7 +141,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   primaryText: { color: "white", fontWeight: "600", fontSize: 15 },
-  helper: { fontSize: 12, color: "#64748b", textAlign: "center" },
   error: { fontSize: 13, color: "#b91c1c", textAlign: "center" },
   disabled: { opacity: 0.5 },
 });
