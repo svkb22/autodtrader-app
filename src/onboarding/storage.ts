@@ -1,8 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAuthSession } from "@/auth/tokenStore";
 
 import { OnboardingPersisted } from "@/onboarding/types";
 
-const ONBOARDING_KEY = "onboarding.state.v1";
+const LEGACY_ONBOARDING_KEY = "onboarding.state.v1";
+
+async function getScopedOnboardingKey(): Promise<string> {
+  const { userId } = await getAuthSession();
+  return userId ? `${LEGACY_ONBOARDING_KEY}:${userId}` : LEGACY_ONBOARDING_KEY;
+}
 
 export const ONBOARDING_VERSION = 1;
 
@@ -14,9 +20,23 @@ const defaultState: OnboardingPersisted = {
 };
 
 export async function getOnboardingState(): Promise<OnboardingPersisted> {
-  const raw = await AsyncStorage.getItem(ONBOARDING_KEY);
-  if (!raw) return defaultState;
+  const scopedKey = await getScopedOnboardingKey();
+  const raw = await AsyncStorage.getItem(scopedKey);
+  if (!raw) {
+    // Backward-compatible fallback for pre-user-scoped installs.
+    const legacy = await AsyncStorage.getItem(LEGACY_ONBOARDING_KEY);
+    if (!legacy) return defaultState;
+    await AsyncStorage.setItem(scopedKey, legacy);
+    if (scopedKey !== LEGACY_ONBOARDING_KEY) {
+      await AsyncStorage.removeItem(LEGACY_ONBOARDING_KEY);
+    }
+    return parseOnboarding(legacy);
+  }
 
+  return parseOnboarding(raw);
+}
+
+function parseOnboarding(raw: string): OnboardingPersisted {
   try {
     const parsed = JSON.parse(raw) as Partial<OnboardingPersisted>;
     if (parsed.version !== ONBOARDING_VERSION) {
@@ -41,10 +61,12 @@ export async function setOnboardingCompleted(activationMode: "paper" | "live"): 
     completed_at: new Date().toISOString(),
     activation_mode: activationMode,
   };
-  await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(next));
+  const scopedKey = await getScopedOnboardingKey();
+  await AsyncStorage.setItem(scopedKey, JSON.stringify(next));
   return next;
 }
 
 export async function clearOnboardingState(): Promise<void> {
-  await AsyncStorage.removeItem(ONBOARDING_KEY);
+  const scopedKey = await getScopedOnboardingKey();
+  await AsyncStorage.removeItem(scopedKey);
 }

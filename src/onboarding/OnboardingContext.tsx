@@ -1,5 +1,6 @@
 import React, { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from "react";
 
+import { useAuth } from "@/auth/AuthContext";
 import { clearOnboardingState, getOnboardingState, setOnboardingCompleted } from "@/onboarding/storage";
 import { OnboardingDraftState, NotificationsStatus, RiskDraft } from "@/onboarding/types";
 
@@ -38,6 +39,7 @@ const defaultDraft: OnboardingDraftState = {
 const OnboardingContext = createContext<OnboardingContextValue | undefined>(undefined);
 
 export function OnboardingProvider({ children }: PropsWithChildren): React.JSX.Element {
+  const { authState, loading: authLoading, userId } = useAuth();
   const [ready, setReady] = useState<boolean>(false);
   const [completed, setCompleted] = useState<boolean>(false);
   const [completedAt, setCompletedAt] = useState<string | null>(null);
@@ -46,12 +48,32 @@ export function OnboardingProvider({ children }: PropsWithChildren): React.JSX.E
 
   useEffect(() => {
     let mounted = true;
+    if (authLoading) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setReady(false);
+
+    if (authState !== "signedIn_verified" || !userId) {
+      setCompleted(false);
+      setCompletedAt(null);
+      setActivationMode(null);
+      setDraft(defaultDraft);
+      setReady(true);
+      return () => {
+        mounted = false;
+      };
+    }
+
     getOnboardingState()
       .then((state) => {
         if (!mounted) return;
         setCompleted(state.completed);
         setCompletedAt(state.completed_at);
         setActivationMode(state.activation_mode);
+        setDraft(defaultDraft);
       })
       .finally(() => {
         if (mounted) {
@@ -62,7 +84,7 @@ export function OnboardingProvider({ children }: PropsWithChildren): React.JSX.E
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [authLoading, authState, userId]);
 
   const value = useMemo<OnboardingContextValue>(
     () => ({

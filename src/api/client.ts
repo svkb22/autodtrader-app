@@ -491,7 +491,8 @@ export async function getBrokerAccount(): Promise<BrokerAccount | null> {
     cachedBrokerAccount = res.data;
     return res.data;
   } catch {
-    return cachedBrokerAccount;
+    // Never surface a stale in-memory account across auth/session changes.
+    return null;
   }
 }
 
