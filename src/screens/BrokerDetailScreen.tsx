@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NavigationProp, ParamListBase, useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
@@ -120,6 +120,14 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
   };
 
   const onDisconnectPress = () => {
+    if (Platform.OS === "web") {
+      const confirmed = typeof globalThis.confirm === "function" ? globalThis.confirm("Remove this Alpaca connection from the app?") : true;
+      if (confirmed) {
+        void disconnectNow();
+      }
+      return;
+    }
+
     Alert.alert("Disconnect Broker", "Remove this Alpaca connection from the app?", [
       { text: "Cancel", style: "cancel" },
       { text: "Disconnect", style: "destructive", onPress: () => void disconnectNow() },
