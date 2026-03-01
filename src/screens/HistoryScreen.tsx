@@ -66,8 +66,13 @@ function isClosedTrade(item: UnifiedActivityItem): boolean {
   return item.kind === "TRADE" && item.statusLabel === "Closed Position";
 }
 
+function getRawStatus(item: UnifiedActivityItem): string {
+  const raw = item.raw as { status?: string };
+  return raw.status ?? "";
+}
+
 function isPendingProposal(item: UnifiedActivityItem): boolean {
-  return item.kind === "PROPOSAL" && item.statusLabel === "Pending";
+  return item.kind === "PROPOSAL" && (item.statusLabel === "Pending" || getRawStatus(item) === "pending");
 }
 
 export default function HistoryScreen(): React.JSX.Element {
@@ -114,8 +119,8 @@ export default function HistoryScreen(): React.JSX.Element {
     } else {
       next = next.filter((item) => item.kind === "PROPOSAL");
       if (proposalFilter === "pending") next = next.filter(isPendingProposal);
-      if (proposalFilter === "expired") next = next.filter((item) => item.statusLabel === "Expired");
-      if (proposalFilter === "rejected") next = next.filter((item) => item.statusLabel === "Rejected");
+      if (proposalFilter === "expired") next = next.filter((item) => getRawStatus(item) === "expired");
+      if (proposalFilter === "rejected") next = next.filter((item) => getRawStatus(item) === "rejected");
     }
 
     return next;
