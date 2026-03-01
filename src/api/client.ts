@@ -573,14 +573,40 @@ export async function getProposalsHistory(limit = 50, cursor?: string | null): P
 }
 
 
+type BrokerStatusApiResponse = {
+  connected?: boolean;
+  mode?: "paper" | "live" | null;
+  alpaca?: {
+    paper?: { connected?: boolean };
+    live?: { connected?: boolean };
+  };
+};
+
+function normalizeBrokerStatus(payload: BrokerStatusApiResponse | null | undefined): BrokerStatus {
+  if (!payload || typeof payload !== "object") {
+    return { connected: false, mode: null };
+  }
+
+  if (typeof payload.connected === "boolean") {
+    const mode = payload.mode === "paper" || payload.mode === "live" ? payload.mode : null;
+    return { connected: payload.connected, mode };
+  }
+
+  const liveConnected = Boolean(payload.alpaca?.live?.connected);
+  const paperConnected = Boolean(payload.alpaca?.paper?.connected);
+
+  if (liveConnected) return { connected: true, mode: "live" };
+  if (paperConnected) return { connected: true, mode: "paper" };
+  return { connected: false, mode: null };
+}
+
 export async function getBrokerStatus(): Promise<BrokerStatus> {
   if (USE_MOCKS) {
     return mockDelay({ connected: brokerConnected, mode: brokerConnected ? brokerMode : null });
   }
-  const res = await api.get<BrokerStatus>("/broker/status");
-  return res.data;
+  const res = await api.get<BrokerStatusApiResponse>("/broker/status");
+  return normalizeBrokerStatus(res.data);
 }
-
 export async function activateSystem(mode: "paper" | "live", settingsSnapshot: Record<string, unknown>): Promise<{ ok: boolean }> {
   if (USE_MOCKS) {
     return mockDelay({ ok: true });
