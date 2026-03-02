@@ -1,19 +1,33 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
+import { makeRedirectUri } from "expo-auth-session";
 
 import { track } from "@/analytics/track";
-import { alpacaConnectWithCredentials, getBrokerStatus, toApiError } from "@/api/client";
+import { toApiError } from "@/api/client";
+import { BrokerStatusResponse, finishAlpacaOAuth, getBrokerStatus, startAlpacaOAuth } from "@/api/broker";
+import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 import OnboardingLayout from "@/screens/onboarding/OnboardingLayout";
+
+type BrokerMode = "paper" | "live";
 
 type Props = {
   navigation: { goBack: () => void; navigate: (route: "RiskGuardrails") => void };
 };
 
+WebBrowser.maybeCompleteAuthSession();
+
+const initialStatus: BrokerStatusResponse = {
+  alpaca: {
+    paper: { connected: false, connectedAt: null, accountId: null, lastError: null },
+    live: { connected: false, connectedAt: null, accountId: null, lastError: null },
+  },
+};
+
 export default function ConnectBrokerOnboardingScreen({ navigation }: Props): React.JSX.Element {
   const { draft, setMode, setBrokerConnected } = useOnboarding();
-  const [username, setUsername] = useState<string>(process.env.EXPO_PUBLIC_ALPACA_USERNAME ?? "placeholder");
-  const [password, setPassword] = useState<string>(process.env.EXPO_PUBLIC_ALPACA_PASSWORD ?? "placeholder");
+  const [status, setStatus] = useState<BrokerStatusResponse>(initialStatus);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>("");
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
@@ -21,31 +35,99 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
   useEffect(() => {
     track("onboarding_step_viewed", { step: "connect_broker" });
     getBrokerStatus()
-      .then((status) => {
-        if (!status.connected) return;
-        if (status.mode) setMode(status.mode);
-        setBrokerConnected(true);
+      .then((brokerStatus) => {
+        setStatus(brokerStatus);
+        if (brokerStatus.alpaca.live.connected) {
+          setMode("live");
+          setBrokerConnected(true);
+          return;
+        }
+        if (brokerStatus.alpaca.paper.connected) {
+          setMode("paper");
+          setBrokerConnected(true);
+          return;
+        }
+        setBrokerConnected(false);
       })
       .catch(() => {
-        // Non-blocking.
+        setBrokerConnected(false);
       });
   }, [setBrokerConnected, setMode]);
 
+  const selectedMode: BrokerMode = ENABLE_LIVE_BROKER ? draft.mode : "paper";
+  const isModeConnected = selectedMode === "live" ? status.alpaca.live.connected : status.alpaca.paper.connected;
   const canContinue = useMemo(() => draft.brokerConnected, [draft.brokerConnected]);
 
   const onConnect = async () => {
     setErrorText("");
-    track("broker_connect_started", { mode: draft.mode });
+    track("broker_connect_started", { mode: selectedMode });
+
+    if (isModeConnected) {
+      setBrokerConnected(true);
+      return;
+    }
+
+    const redirectUri = makeRedirectUri({ scheme: "autodtrader", path: "broker/callback" });
+
     try {
       setLoading(true);
-      await alpacaConnectWithCredentials(draft.mode, username.trim(), password.trim());
-      setBrokerConnected(true);
-      track("broker_connect_success", { mode: draft.mode });
+      const start = await startAlpacaOAuth(selectedMode, redirectUri);
+      track("broker_oauth_started", { mode: selectedMode });
+
+      const result = await WebBrowser.openAuthSessionAsync(start.authorizeUrl, redirectUri);
+      if (result.type !== "success") {
+        setBrokerConnected(false);
+        setErrorText("Connection canceled.");
+        track("broker_oauth_failed", { reason: result.type });
+        return;
+      }
+
+      const callbackUrl = result.url;
+      if (!callbackUrl) {
+        setBrokerConnected(false);
+        setErrorText("Authorization failed. Try again.");
+        track("broker_oauth_failed", { reason: "missing_callback_url" });
+        return;
+      }
+
+      const parsed = new URL(callbackUrl);
+      const code = parsed.searchParams.get("code");
+      const state = parsed.searchParams.get("state");
+      const returnedError = parsed.searchParams.get("error");
+
+      if (returnedError) {
+        setBrokerConnected(false);
+        setErrorText("Authorization failed. Try again.");
+        track("broker_oauth_failed", { reason: returnedError });
+        return;
+      }
+
+      if (!code) {
+        setBrokerConnected(false);
+        setErrorText("Authorization failed. Try again.");
+        track("broker_oauth_failed", { reason: "missing_code" });
+        return;
+      }
+
+      if (!state || state !== start.state) {
+        setBrokerConnected(false);
+        setErrorText("Security check failed. Try again.");
+        track("broker_oauth_failed", { reason: "invalid_state" });
+        return;
+      }
+
+      await finishAlpacaOAuth(code, state, selectedMode);
+      const refreshed = await getBrokerStatus();
+      setStatus(refreshed);
+      setBrokerConnected(selectedMode === "live" ? refreshed.alpaca.live.connected : refreshed.alpaca.paper.connected);
+      track("broker_connect_success", { mode: selectedMode });
+      track("broker_oauth_completed", { mode: selectedMode });
     } catch (error) {
       setBrokerConnected(false);
       const message = toApiError(error);
-      setErrorText("Couldn’t connect. Try again.");
+      setErrorText(message);
       track("broker_connect_failed", { error_code: message.slice(0, 80) });
+      track("broker_oauth_failed", { reason: "network_or_server" });
     } finally {
       setLoading(false);
     }
@@ -56,7 +138,7 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
       step={3}
       totalSteps={7}
       title="Connect your brokerage"
-      subtitle="Connect Alpaca to place trades securely. We never store your password."
+      subtitle="Connect Alpaca with OAuth. We never store your password."
       primaryLabel="Continue"
       onPrimary={() => {
         track("onboarding_step_completed", { step: "connect_broker" });
@@ -68,33 +150,36 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
     >
       <View style={styles.card}>
         <Text style={styles.label}>Mode</Text>
-        <View style={styles.toggleRow}>
-          <Pressable
-            accessibilityLabel="Use Paper Trading"
-            style={[styles.modeButton, draft.mode === "paper" && styles.modeButtonActive]}
-            onPress={() => setMode("paper")}
-          >
-            <Text style={[styles.modeText, draft.mode === "paper" && styles.modeTextActive]}>Paper (Recommended)</Text>
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Use Live Trading"
-            style={[styles.modeButton, draft.mode === "live" && styles.modeButtonActive]}
-            onPress={() => setMode("live")}
-          >
-            <Text style={[styles.modeText, draft.mode === "live" && styles.modeTextActive]}>Live</Text>
-          </Pressable>
-        </View>
+        {ENABLE_LIVE_BROKER ? (
+          <View style={styles.toggleRow}>
+            <Pressable
+              accessibilityLabel="Use Paper Trading"
+              style={[styles.modeButton, draft.mode === "paper" && styles.modeButtonActive]}
+              onPress={() => setMode("paper")}
+            >
+              <Text style={[styles.modeText, draft.mode === "paper" && styles.modeTextActive]}>Paper (Recommended)</Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Use Live Trading"
+              style={[styles.modeButton, draft.mode === "live" && styles.modeButtonActive]}
+              onPress={() => setMode("live")}
+            >
+              <Text style={[styles.modeText, draft.mode === "live" && styles.modeTextActive]}>Live</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={[styles.modeButton, styles.modeButtonActive]}>
+            <Text style={[styles.modeText, styles.modeTextActive]}>Paper (Recommended)</Text>
+          </View>
+        )}
 
-        <Text style={styles.label}>Alpaca username/email</Text>
-        <TextInput style={styles.input} value={username} onChangeText={setUsername} autoCapitalize="none" />
-        <Text style={styles.label}>Alpaca password</Text>
-        <TextInput style={styles.input} value={password} onChangeText={setPassword} autoCapitalize="none" secureTextEntry />
-
-        <Pressable accessibilityLabel="Connect Alpaca" style={styles.connectButton} onPress={onConnect} disabled={loading}>
-          <Text style={styles.connectText}>{loading ? "Connecting..." : draft.brokerConnected ? "Connected" : "Connect Alpaca"}</Text>
+        <Pressable accessibilityLabel="Connect Alpaca" style={styles.connectButton} onPress={() => void onConnect()} disabled={loading}>
+          <Text style={styles.connectText}>
+            {loading ? "Connecting..." : draft.brokerConnected ? "Connected" : "Continue to Alpaca"}
+          </Text>
         </Pressable>
 
-        <Text style={styles.helper}>Start with paper trading to validate the system.</Text>
+        <Text style={styles.helper}>OAuth sign-in opens Alpaca authorization in a secure browser session.</Text>
         {errorText ? (
           <View style={styles.errorWrap}>
             <Text style={styles.errorText}>{errorText}</Text>
@@ -109,7 +194,7 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Connection help</Text>
-            <Text style={styles.modalBody}>Check your Alpaca credentials and selected mode (paper/live), then retry.</Text>
+            <Text style={styles.modalBody}>Confirm your Alpaca account can access the selected mode and retry OAuth.</Text>
             <Pressable accessibilityLabel="Close help" style={styles.modalButton} onPress={() => setHelpOpen(false)}>
               <Text style={styles.modalButtonText}>Close</Text>
             </Pressable>
@@ -159,14 +244,6 @@ const styles = StyleSheet.create({
   },
   modeTextActive: {
     color: "white",
-  },
-  input: {
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    paddingHorizontal: 12,
-    backgroundColor: "white",
   },
   connectButton: {
     minHeight: 48,
