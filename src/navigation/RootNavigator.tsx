@@ -13,7 +13,6 @@ import AutoExecuteSettingsScreen from "@/screens/AutoExecuteSettingsScreen";
 import BrokerDetailScreen from "@/screens/BrokerDetailScreen";
 import BrokersScreen from "@/screens/BrokersScreen";
 import ConnectAlpacaScreen from "@/screens/ConnectAlpacaScreen";
-import ConnectBrokerScreen from "@/screens/ConnectBrokerScreen";
 import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import HistoryScreen from "@/screens/HistoryScreen";
@@ -26,7 +25,6 @@ import VerifyEmailScreen from "@/screens/VerifyEmailScreen";
 
 export type AppStackParamList = {
   Tabs: undefined;
-  ConnectBroker: undefined;
   RiskSettings: undefined;
   AutoExecuteSettings: undefined;
   Home: { proposalId?: string } | undefined;
@@ -106,7 +104,6 @@ function AppStackNavigator(): React.JSX.Element {
   return (
     <Stack.Navigator>
       <Stack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false }} />
-      <Stack.Screen name="ConnectBroker" component={ConnectBrokerScreen} options={{ title: "Connect Alpaca" }} />
       <Stack.Screen name="RiskSettings" component={RiskSettingsScreen} options={{ title: "Risk Settings" }} />
       <Stack.Screen name="AutoExecuteSettings" component={AutoExecuteSettingsScreen} options={{ title: "Auto Execution" }} />
       <Stack.Screen name="Home" component={HomeScreen} options={{ title: "Home" }} />

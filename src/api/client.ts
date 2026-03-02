@@ -387,14 +387,6 @@ export async function alpacaDisconnect(options?: DisconnectOptions): Promise<{ d
   throw lastError ?? new Error("Disconnect failed");
 }
 
-export async function alpacaConnectWithCredentials(
-  env: "paper" | "live",
-  username: string,
-  password: string
-): Promise<{ connected: boolean; account: BrokerAccount }> {
-  return alpacaConnect(env, username, password);
-}
-
 export async function getBrokerSettings(): Promise<BrokerSettings> {
   if (USE_MOCKS) {
     return mockDelay(mockBrokerSettings);

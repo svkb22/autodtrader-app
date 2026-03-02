@@ -60,8 +60,6 @@ Optional dev fallback:
 
 - `EXPO_PUBLIC_DEFAULT_EMAIL=...`
 - `EXPO_PUBLIC_DEFAULT_OTP=123456`
-- `EXPO_PUBLIC_ALPACA_USERNAME=...`
-- `EXPO_PUBLIC_ALPACA_PASSWORD=...`
 
 ## Firebase Console setup
 
