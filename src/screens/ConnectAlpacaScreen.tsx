@@ -7,8 +7,11 @@ import { track } from "@/analytics/track";
 import { toApiError } from "@/api/client";
 import { BrokerStatusResponse, finishAlpacaOAuth, getBrokerStatus, startAlpacaOAuth } from "@/api/broker";
 import { acceptStocksAgreement } from "@/api/agreements";
+import OAuthResultBanner from "@/components/OAuthResultBanner";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { getStocksAgreementState, setStocksAgreementAccepted } from "@/storage/agreements";
+import { mapOAuthResultToUIState, OAuthAction, OAuthBannerState, parseOAuthErrorFromUrl } from "@/utils/mapOAuthError";
+import { openExternalUrl } from "@/utils/openExternalUrl";
 
 type BrokerMode = "paper" | "live";
 
@@ -16,6 +19,8 @@ type Props = {
   navigation: { goBack: () => void };
   route?: { params?: { mode?: BrokerMode } };
 };
+
+const ALPACA_SIGNUP_URL = "https://app.alpaca.markets/signup";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -35,6 +40,7 @@ export default function ConnectAlpacaScreen({ navigation, route }: Props): React
   const [loadingAgreement, setLoadingAgreement] = useState<boolean>(true);
   const [connecting, setConnecting] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>("");
+  const [oauthBanner, setOAuthBanner] = useState<OAuthBannerState | null>(null);
 
   useEffect(() => {
     Promise.all([getStocksAgreementState(), getBrokerStatus()])
@@ -59,6 +65,22 @@ export default function ConnectAlpacaScreen({ navigation, route }: Props): React
     }
     return "Paper trading is recommended while validating the system.";
   }, [selectedMode]);
+
+  const openSignup = async (source: string) => {
+    track("alpaca_signup_link_clicked", { source, env: selectedMode });
+    await openExternalUrl(ALPACA_SIGNUP_URL);
+  };
+
+  const applyOAuthMappedState = (input: { resultType?: string | null; error?: string | null; errorDescription?: string | null }) => {
+    const mapped = mapOAuthResultToUIState(input);
+    setOAuthBanner(mapped);
+    track("alpaca_oauth_result", {
+      env: selectedMode,
+      resultType: mapped.category === "canceled" ? "cancel" : "error",
+      mappedCategory: mapped.category,
+      rawError: mapped.rawErrorCode,
+    });
+  };
 
   const onAcceptAgreement = async () => {
     setErrorText("");
@@ -88,10 +110,12 @@ export default function ConnectAlpacaScreen({ navigation, route }: Props): React
     }
 
     setErrorText("");
+    setOAuthBanner(null);
     const redirectUri = makeRedirectUri({ scheme: "autodtrader", path: "broker/callback" });
 
     try {
       setConnecting(true);
+      track("alpaca_connect_clicked", { env: selectedMode });
       track("broker_connect_tapped", { broker: "alpaca", mode: selectedMode });
 
       const start = await startAlpacaOAuth(selectedMode, redirectUri);
@@ -99,57 +123,80 @@ export default function ConnectAlpacaScreen({ navigation, route }: Props): React
 
       const result = await WebBrowser.openAuthSessionAsync(start.authorizeUrl, redirectUri);
       if (result.type !== "success") {
-        setErrorText("Connection canceled.");
-        track("broker_oauth_failed", { reason: result.type });
+        applyOAuthMappedState({ resultType: result.type });
         return;
       }
 
       const callbackUrl = result.url;
+      const providerError = parseOAuthErrorFromUrl(callbackUrl);
+
       if (!callbackUrl) {
-        setErrorText("Authorization failed. Try again.");
-        track("broker_oauth_failed", { reason: "missing_callback_url" });
+        applyOAuthMappedState({ error: "invalid_request", errorDescription: "missing_callback_url" });
+        return;
+      }
+
+      if (providerError.error) {
+        applyOAuthMappedState({ error: providerError.error, errorDescription: providerError.errorDescription });
         return;
       }
 
       const parsed = new URL(callbackUrl);
       const code = parsed.searchParams.get("code");
       const state = parsed.searchParams.get("state");
-      const returnedError = parsed.searchParams.get("error");
-
-      if (returnedError) {
-        setErrorText("Authorization failed. Try again.");
-        track("broker_oauth_failed", { reason: returnedError });
-        return;
-      }
 
       if (!code) {
-        setErrorText("Authorization failed. Try again.");
-        track("broker_oauth_failed", { reason: "missing_code" });
+        applyOAuthMappedState({ error: "invalid_request", errorDescription: "missing_code" });
         return;
       }
 
       if (!state || state !== start.state) {
-        setErrorText("Security check failed. Try again.");
-        track("broker_oauth_failed", { reason: "invalid_state" });
+        applyOAuthMappedState({ error: "invalid_request", errorDescription: "invalid_state" });
         return;
       }
 
       await finishAlpacaOAuth(code, state, selectedMode);
+      setOAuthBanner(null);
+      track("alpaca_oauth_result", { env: selectedMode, resultType: "success", mappedCategory: "success", rawError: null });
       track("broker_oauth_completed", { mode: selectedMode });
       Alert.alert("Success", "Alpaca connected");
       navigation.goBack();
-    } catch (error) {
-      setErrorText(toApiError(error));
+    } catch {
+      applyOAuthMappedState({ resultType: "error", error: "network_error", errorDescription: "network_or_server" });
       track("broker_oauth_failed", { reason: "network_or_server" });
     } finally {
       setConnecting(false);
     }
   };
 
+  const onBannerAction = async (action: OAuthAction) => {
+    if (action === "retry") {
+      track("alpaca_oauth_retry_clicked", { env: selectedMode });
+      await onStartOAuth();
+      return;
+    }
+    if (action === "signup") {
+      await openSignup("connect_screen_banner");
+      return;
+    }
+    navigation.goBack();
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Connect Alpaca</Text>
       <Text style={styles.subtitle}>Connect Alpaca to place stock trades securely. We never store your password.</Text>
+
+      {oauthBanner ? (
+        <OAuthResultBanner
+          category={oauthBanner.category}
+          title={oauthBanner.title}
+          message={oauthBanner.message}
+          primaryLabel={oauthBanner.primaryLabel}
+          secondaryLabel={oauthBanner.secondaryLabel}
+          onPrimary={() => void onBannerAction(oauthBanner.primaryAction)}
+          onSecondary={() => void onBannerAction(oauthBanner.secondaryAction)}
+        />
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.label}>Mode</Text>
@@ -206,6 +253,14 @@ export default function ConnectAlpacaScreen({ navigation, route }: Props): React
       >
         <Text style={styles.primaryButtonText}>{connecting ? "Connecting..." : "Continue to Alpaca"}</Text>
       </Pressable>
+
+      <View style={styles.signupBlock}>
+        <Text style={styles.signupTitle}>New to Alpaca?</Text>
+        <Text style={styles.signupBody}>Create an account first, then return here to connect.</Text>
+        <Pressable onPress={() => void openSignup("connect_screen")}>
+          <Text style={styles.signupLink}>Create Alpaca account</Text>
+        </Pressable>
+      </View>
 
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
     </View>
@@ -277,5 +332,16 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { color: "white", fontWeight: "600", fontSize: 15 },
   disabled: { opacity: 0.5 },
+  signupBlock: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "white",
+    padding: 12,
+    gap: 4,
+  },
+  signupTitle: { color: "#0f172a", fontSize: 14, fontWeight: "700" },
+  signupBody: { color: "#64748b", fontSize: 12, lineHeight: 17 },
+  signupLink: { color: "#0f172a", fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },
   error: { color: "#b91c1c", fontSize: 13 },
 });

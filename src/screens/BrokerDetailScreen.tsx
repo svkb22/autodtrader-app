@@ -2,12 +2,14 @@ import React, { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NavigationProp, ParamListBase, useFocusEffect, useNavigation } from "@react-navigation/native";
 
+import { track } from "@/analytics/track";
 import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
 import { activateSystem, alpacaDisconnect, getBrokerAccount, toApiError } from "@/api/client";
 import { BrokerAccount } from "@/api/types";
 import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { BrokerMode, getActiveBrokerMode, setActiveBrokerMode } from "@/storage/brokerMode";
+import { openExternalUrl } from "@/utils/openExternalUrl";
 
 type Props = {
   navigation: { navigate: (route: "ConnectAlpaca", params?: { mode?: BrokerMode }) => void };
@@ -19,6 +21,7 @@ const initialStatus: BrokerStatusResponse = {
     live: { connected: false, connectedAt: null, accountId: null, lastError: null },
   },
 };
+const ALPACA_SIGNUP_URL = "https://app.alpaca.markets/signup";
 
 export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Element {
   const rootNavigation = useNavigation<NavigationProp<ParamListBase>>();
@@ -138,6 +141,11 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
     ]);
   };
 
+  const onCreateAlpacaAccount = async () => {
+    track("alpaca_signup_link_clicked", { source: "settings_broker_detail", env: activeMode });
+    await openExternalUrl(ALPACA_SIGNUP_URL);
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -222,6 +230,13 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
               <Text style={styles.chevronDanger}>›</Text>
             </Pressable>
           ) : null}
+        </View>
+
+        <View style={styles.signupHelp}>
+          <Pressable onPress={() => void onCreateAlpacaAccount()}>
+            <Text style={styles.signupHelpLink}>New to Alpaca? Create an account.</Text>
+          </Pressable>
+          <Text style={styles.signupHelpText}>You’ll return here to connect once your account is ready.</Text>
         </View>
       </View>
 
@@ -331,4 +346,18 @@ const styles = StyleSheet.create({
   chevronDanger: { color: "#b91c1c", fontSize: 20, lineHeight: 20 },
   error: { color: "#b91c1c", fontSize: 13 },
   disabled: { opacity: 0.6 },
+  signupHelp: {
+    marginTop: 8,
+    gap: 2,
+  },
+  signupHelpLink: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  signupHelpText: {
+    color: "#64748b",
+    fontSize: 11,
+  },
 });

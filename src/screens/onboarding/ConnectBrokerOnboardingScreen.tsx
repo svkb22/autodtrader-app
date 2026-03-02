@@ -1,20 +1,24 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 
 import { track } from "@/analytics/track";
-import { toApiError } from "@/api/client";
 import { BrokerStatusResponse, finishAlpacaOAuth, getBrokerStatus, startAlpacaOAuth } from "@/api/broker";
+import OAuthResultBanner from "@/components/OAuthResultBanner";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 import OnboardingLayout from "@/screens/onboarding/OnboardingLayout";
+import { mapOAuthResultToUIState, OAuthAction, OAuthBannerState, parseOAuthErrorFromUrl } from "@/utils/mapOAuthError";
+import { openExternalUrl } from "@/utils/openExternalUrl";
 
 type BrokerMode = "paper" | "live";
 
 type Props = {
   navigation: { goBack: () => void; navigate: (route: "RiskGuardrails") => void };
 };
+
+const ALPACA_SIGNUP_URL = "https://app.alpaca.markets/signup";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -29,8 +33,7 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
   const { draft, setMode, setBrokerConnected } = useOnboarding();
   const [status, setStatus] = useState<BrokerStatusResponse>(initialStatus);
   const [loading, setLoading] = useState<boolean>(false);
-  const [errorText, setErrorText] = useState<string>("");
-  const [helpOpen, setHelpOpen] = useState<boolean>(false);
+  const [oauthBanner, setOAuthBanner] = useState<OAuthBannerState | null>(null);
 
   useEffect(() => {
     track("onboarding_step_viewed", { step: "connect_broker" });
@@ -58,8 +61,25 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
   const isModeConnected = selectedMode === "live" ? status.alpaca.live.connected : status.alpaca.paper.connected;
   const canContinue = useMemo(() => draft.brokerConnected, [draft.brokerConnected]);
 
+  const openSignup = async (source: string) => {
+    track("alpaca_signup_link_clicked", { source, env: selectedMode });
+    await openExternalUrl(ALPACA_SIGNUP_URL);
+  };
+
+  const applyOAuthMappedState = (input: { resultType?: string | null; error?: string | null; errorDescription?: string | null }) => {
+    const mapped = mapOAuthResultToUIState(input);
+    setOAuthBanner(mapped);
+    track("alpaca_oauth_result", {
+      env: selectedMode,
+      resultType: mapped.category === "canceled" ? "cancel" : "error",
+      mappedCategory: mapped.category,
+      rawError: mapped.rawErrorCode,
+    });
+  };
+
   const onConnect = async () => {
-    setErrorText("");
+    setOAuthBanner(null);
+    track("alpaca_connect_clicked", { env: selectedMode });
     track("broker_connect_started", { mode: selectedMode });
 
     if (isModeConnected) {
@@ -77,42 +97,38 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
       const result = await WebBrowser.openAuthSessionAsync(start.authorizeUrl, redirectUri);
       if (result.type !== "success") {
         setBrokerConnected(false);
-        setErrorText("Connection canceled.");
-        track("broker_oauth_failed", { reason: result.type });
+        applyOAuthMappedState({ resultType: result.type });
         return;
       }
 
       const callbackUrl = result.url;
+      const providerError = parseOAuthErrorFromUrl(callbackUrl);
+
       if (!callbackUrl) {
         setBrokerConnected(false);
-        setErrorText("Authorization failed. Try again.");
-        track("broker_oauth_failed", { reason: "missing_callback_url" });
+        applyOAuthMappedState({ error: "invalid_request", errorDescription: "missing_callback_url" });
+        return;
+      }
+
+      if (providerError.error) {
+        setBrokerConnected(false);
+        applyOAuthMappedState({ error: providerError.error, errorDescription: providerError.errorDescription });
         return;
       }
 
       const parsed = new URL(callbackUrl);
       const code = parsed.searchParams.get("code");
       const state = parsed.searchParams.get("state");
-      const returnedError = parsed.searchParams.get("error");
-
-      if (returnedError) {
-        setBrokerConnected(false);
-        setErrorText("Authorization failed. Try again.");
-        track("broker_oauth_failed", { reason: returnedError });
-        return;
-      }
 
       if (!code) {
         setBrokerConnected(false);
-        setErrorText("Authorization failed. Try again.");
-        track("broker_oauth_failed", { reason: "missing_code" });
+        applyOAuthMappedState({ error: "invalid_request", errorDescription: "missing_code" });
         return;
       }
 
       if (!state || state !== start.state) {
         setBrokerConnected(false);
-        setErrorText("Security check failed. Try again.");
-        track("broker_oauth_failed", { reason: "invalid_state" });
+        applyOAuthMappedState({ error: "invalid_request", errorDescription: "invalid_state" });
         return;
       }
 
@@ -120,17 +136,30 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
       const refreshed = await getBrokerStatus();
       setStatus(refreshed);
       setBrokerConnected(selectedMode === "live" ? refreshed.alpaca.live.connected : refreshed.alpaca.paper.connected);
+      setOAuthBanner(null);
+      track("alpaca_oauth_result", { env: selectedMode, resultType: "success", mappedCategory: "success", rawError: null });
       track("broker_connect_success", { mode: selectedMode });
       track("broker_oauth_completed", { mode: selectedMode });
-    } catch (error) {
+    } catch {
       setBrokerConnected(false);
-      const message = toApiError(error);
-      setErrorText(message);
-      track("broker_connect_failed", { error_code: message.slice(0, 80) });
+      applyOAuthMappedState({ resultType: "error", error: "network_error", errorDescription: "network_or_server" });
       track("broker_oauth_failed", { reason: "network_or_server" });
     } finally {
       setLoading(false);
     }
+  };
+
+  const onBannerAction = async (action: OAuthAction) => {
+    if (action === "retry") {
+      track("alpaca_oauth_retry_clicked", { env: selectedMode });
+      await onConnect();
+      return;
+    }
+    if (action === "signup") {
+      await openSignup("onboarding_banner");
+      return;
+    }
+    navigation.goBack();
   };
 
   return (
@@ -174,33 +203,31 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
         )}
 
         <Pressable accessibilityLabel="Connect Alpaca" style={styles.connectButton} onPress={() => void onConnect()} disabled={loading}>
-          <Text style={styles.connectText}>
-            {loading ? "Connecting..." : draft.brokerConnected ? "Connected" : "Continue to Alpaca"}
-          </Text>
+          <Text style={styles.connectText}>{loading ? "Connecting..." : draft.brokerConnected ? "Connected" : "Continue to Alpaca"}</Text>
         </Pressable>
 
-        <Text style={styles.helper}>OAuth sign-in opens Alpaca authorization in a secure browser session.</Text>
-        {errorText ? (
-          <View style={styles.errorWrap}>
-            <Text style={styles.errorText}>{errorText}</Text>
-            <Pressable accessibilityLabel="Need help" onPress={() => setHelpOpen(true)}>
-              <Text style={styles.helpLink}>Need help?</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-
-      <Modal visible={helpOpen} transparent animationType="fade" onRequestClose={() => setHelpOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Connection help</Text>
-            <Text style={styles.modalBody}>Confirm your Alpaca account can access the selected mode and retry OAuth.</Text>
-            <Pressable accessibilityLabel="Close help" style={styles.modalButton} onPress={() => setHelpOpen(false)}>
-              <Text style={styles.modalButtonText}>Close</Text>
-            </Pressable>
-          </View>
+        <View style={styles.signupBlock}>
+          <Text style={styles.signupTitle}>New to Alpaca?</Text>
+          <Text style={styles.signupBody}>Create an account first, then return here to connect.</Text>
+          <Pressable onPress={() => void openSignup("onboarding_connect")}> 
+            <Text style={styles.signupLink}>Create Alpaca account</Text>
+          </Pressable>
         </View>
-      </Modal>
+
+        {oauthBanner ? (
+          <OAuthResultBanner
+            category={oauthBanner.category}
+            title={oauthBanner.title}
+            message={oauthBanner.message}
+            primaryLabel={oauthBanner.primaryLabel}
+            secondaryLabel={oauthBanner.secondaryLabel}
+            onPrimary={() => void onBannerAction(oauthBanner.primaryAction)}
+            onSecondary={() => void onBannerAction(oauthBanner.secondaryAction)}
+          />
+        ) : (
+          <Text style={styles.helper}>OAuth sign-in opens Alpaca authorization in a secure browser session.</Text>
+        )}
+      </View>
     </OnboardingLayout>
   );
 }
@@ -261,51 +288,15 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontSize: 12,
   },
-  errorWrap: {
-    marginTop: 2,
+  signupBlock: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#f8fafc",
+    padding: 10,
     gap: 4,
   },
-  errorText: {
-    color: "#b91c1c",
-    fontSize: 13,
-  },
-  helpLink: {
-    color: "#0f172a",
-    fontSize: 13,
-    textDecorationLine: "underline",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.3)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalCard: {
-    width: "100%",
-    borderRadius: 16,
-    backgroundColor: "white",
-    padding: 16,
-    gap: 10,
-  },
-  modalTitle: {
-    color: "#0f172a",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  modalBody: {
-    color: "#475569",
-    fontSize: 14,
-  },
-  modalButton: {
-    minHeight: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0f172a",
-  },
-  modalButtonText: {
-    color: "white",
-    fontWeight: "600",
-  },
+  signupTitle: { color: "#0f172a", fontSize: 14, fontWeight: "700" },
+  signupBody: { color: "#64748b", fontSize: 12, lineHeight: 17 },
+  signupLink: { color: "#0f172a", fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },
 });
