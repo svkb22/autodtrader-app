@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Ionicons } from "@expo/vector-icons";
 
 import { useAuth } from "@/auth/AuthContext";
 import OnboardingNavigator from "@/navigation/OnboardingNavigator";
@@ -45,9 +45,30 @@ const Tabs = createBottomTabNavigator();
 const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
 export const navigationRef = createNavigationContainerRef<AppStackParamList>();
 
+function BackButton({ onPress }: { onPress: () => void }): React.JSX.Element {
+  return (
+    <Pressable onPress={onPress} style={styles.backButton} accessibilityLabel="Back">
+      <Text style={styles.backButtonText}>Back</Text>
+    </Pressable>
+  );
+}
+
+function TabBadge({ label, focused }: { label: string; focused: boolean }): React.JSX.Element {
+  return (
+    <View style={[styles.tabBadge, focused && styles.tabBadgeFocused]}>
+      <Text style={[styles.tabBadgeText, focused && styles.tabBadgeTextFocused]}>{label}</Text>
+    </View>
+  );
+}
+
 function SettingsStackNavigator(): React.JSX.Element {
   return (
-    <SettingsStack.Navigator>
+    <SettingsStack.Navigator
+      screenOptions={({ navigation }) => ({
+        headerBackVisible: false,
+        headerLeft: navigation.canGoBack() ? () => <BackButton onPress={navigation.goBack} /> : undefined,
+      })}
+    >
       <SettingsStack.Screen name="SettingsHome" component={SettingsScreen} options={{ headerShown: false }} />
       <SettingsStack.Screen name="Brokers" component={BrokersScreen} options={{ title: "Brokers" }} />
       <SettingsStack.Screen name="BrokerDetail" component={BrokerDetailScreen} options={{ title: "Alpaca" }} />
@@ -63,27 +84,21 @@ function AppTabs(): React.JSX.Element {
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBadge label="H" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="Positions"
         component={PositionsScreen}
         options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "trending-up" : "trending-up-outline"} size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBadge label="P" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="History"
         component={HistoryScreen}
         options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "time" : "time-outline"} size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBadge label="T" focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -91,9 +106,7 @@ function AppTabs(): React.JSX.Element {
         component={SettingsStackNavigator}
         options={{
           headerShown: false,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "settings" : "settings-outline"} size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBadge label="S" focused={focused} />,
         }}
       />
     </Tabs.Navigator>
@@ -102,7 +115,12 @@ function AppTabs(): React.JSX.Element {
 
 function AppStackNavigator(): React.JSX.Element {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator
+      screenOptions={({ navigation }) => ({
+        headerBackVisible: false,
+        headerLeft: navigation.canGoBack() ? () => <BackButton onPress={navigation.goBack} /> : undefined,
+      })}
+    >
       <Stack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false }} />
       <Stack.Screen name="RiskSettings" component={RiskSettingsScreen} options={{ title: "Risk Settings" }} />
       <Stack.Screen name="AutoExecuteSettings" component={AutoExecuteSettingsScreen} options={{ title: "Auto Execution" }} />
@@ -154,3 +172,39 @@ export default function RootNavigator(): React.JSX.Element {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  backButton: {
+    minHeight: 32,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    justifyContent: "center",
+  },
+  backButtonText: {
+    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  tabBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabBadgeFocused: {
+    backgroundColor: "#0f172a",
+    borderColor: "#0f172a",
+  },
+  tabBadgeText: {
+    color: "#334155",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  tabBadgeTextFocused: {
+    color: "#ffffff",
+  },
+});
