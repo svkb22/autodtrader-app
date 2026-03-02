@@ -136,6 +136,7 @@ function UnverifiedNavigator(): React.JSX.Element {
 export default function RootNavigator(): React.JSX.Element {
   const { authState } = useAuth();
   const { completed } = useOnboarding();
+  const navTreeKey = `${authState}-${completed ? "app" : "onboarding"}`;
 
   useEffect(() => {
     const disposeTap = initNotificationTapHandler((proposalId?: string) => {
@@ -151,7 +152,7 @@ export default function RootNavigator(): React.JSX.Element {
   }, [authState, completed]);
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer key={navTreeKey} ref={navigationRef}>
       {authState === "signedOut" ? <AuthNavigator /> : authState === "signedIn_unverified" ? <UnverifiedNavigator /> : completed ? <AppStackNavigator /> : <OnboardingNavigator />}
     </NavigationContainer>
   );
