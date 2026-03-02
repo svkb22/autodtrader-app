@@ -17,9 +17,9 @@ import ConnectBrokerScreen from "@/screens/ConnectBrokerScreen";
 import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import HistoryScreen from "@/screens/HistoryScreen";
+import HomeScreen from "@/screens/HomeScreen";
 import PositionsScreen from "@/screens/PositionsScreen";
 import ProposalDetailScreen from "@/screens/ProposalDetailScreen";
-import ProposalScreen from "@/screens/ProposalScreen";
 import RiskSettingsScreen from "@/screens/RiskSettingsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import VerifyEmailScreen from "@/screens/VerifyEmailScreen";
@@ -29,7 +29,7 @@ export type AppStackParamList = {
   ConnectBroker: undefined;
   RiskSettings: undefined;
   AutoExecuteSettings: undefined;
-  Proposal: { proposalId?: string } | undefined;
+  Home: { proposalId?: string } | undefined;
   ProposalDetail: { proposalId: string };
 };
 
@@ -62,11 +62,11 @@ function AppTabs(): React.JSX.Element {
   return (
     <Tabs.Navigator>
       <Tabs.Screen
-        name="Proposals"
-        component={ProposalScreen}
+        name="Home"
+        component={HomeScreen}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "clipboard" : "clipboard-outline"} size={size} color={color} />
+            <Ionicons name={focused ? "home" : "home-outline"} size={size} color={color} />
           ),
         }}
       />
@@ -109,7 +109,7 @@ function AppStackNavigator(): React.JSX.Element {
       <Stack.Screen name="ConnectBroker" component={ConnectBrokerScreen} options={{ title: "Connect Alpaca" }} />
       <Stack.Screen name="RiskSettings" component={RiskSettingsScreen} options={{ title: "Risk Settings" }} />
       <Stack.Screen name="AutoExecuteSettings" component={AutoExecuteSettingsScreen} options={{ title: "Auto Execution" }} />
-      <Stack.Screen name="Proposal" component={ProposalScreen} options={{ title: "Proposal" }} />
+      <Stack.Screen name="Home" component={HomeScreen} options={{ title: "Home" }} />
       <Stack.Screen name="ProposalDetail" component={ProposalDetailScreen} options={{ title: "Proposal Detail" }} />
     </Stack.Navigator>
   );
@@ -141,7 +141,7 @@ export default function RootNavigator(): React.JSX.Element {
     const disposeTap = initNotificationTapHandler((proposalId?: string) => {
       if (authState !== "signedIn_verified" || !completed) return;
       if (navigationRef.isReady()) {
-        navigationRef.navigate("Proposal", proposalId ? { proposalId } : undefined);
+        navigationRef.navigate("Home", proposalId ? { proposalId } : undefined);
       }
     });
 

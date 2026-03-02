@@ -1,83 +1,140 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { LayoutChangeEvent, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { Alert, LayoutChangeEvent, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 
-import { getBrokerAccount, getCurrentProposal, getExecutionSummary, getOrderOutcomes, getRecentOrders, getRisk, toApiError } from "@/api/client";
-import { BrokerAccount, ExecutionSummary, Order, OrderOutcome, Proposal, RiskProfile } from "@/api/types";
+import {
+  approveProposal,
+  getBrokerAccount,
+  getCurrentProposal,
+  getExecutionRecent,
+  getOrderOutcomes,
+  getProposalsHistory,
+  getRisk,
+  rejectProposal,
+  toApiError,
+} from "@/api/client";
+import { ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem } from "@/api/types";
 import Countdown from "@/components/Countdown";
-import ErrorState from "@/components/ErrorState";
-import ProposalCard from "@/components/ProposalCard";
-import { dateTime, usd, usdCompact } from "@/utils/format";
+import { getActiveBrokerMode } from "@/storage/brokerMode";
+import { usd } from "@/utils/format";
+import { isExpired } from "@/utils/time";
 
-type Nav = {
-  navigate: (
-    screen: "Proposal",
-    params?: { proposalId?: string }
-  ) => void;
+type Props = {
+  route?: { params?: { proposalId?: string } };
 };
 
-export default function HomeScreen(): React.JSX.Element {
-  type ChartRange = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "ALL";
-  type ChartPoint = { label: string; value: number };
+type SparkPoint = { x: number; y: number };
 
-  const navigation = useNavigation<Nav>();
+type TodaySummary = {
+  executed: number;
+  closed: number;
+  expired: number;
+};
+
+function recommendationText(strength: Proposal["strength"]): string {
+  if (strength === "strong") return "Strong";
+  if (strength === "medium") return "Moderate";
+  return "Watch";
+}
+
+function isTodayLocal(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
+function historyFilledToday(item: ProposalHistoryItem): boolean {
+  return isTodayLocal(item.prices.filled_at ?? item.order_summary?.filled_at ?? item.decision_at ?? item.created_at);
+}
+
+function buildSparkSeries(equity: number, executions: ExecutionRecentItem[]): number[] {
+  const validEquity = Number.isFinite(equity) ? equity : 0;
+
+  const realizedEvents = executions
+    .filter((item) => typeof item.realized_pnl === "number")
+    .sort((a, b) => {
+      const aTs = Date.parse(a.exit_filled_at ?? a.filled_at ?? a.submitted_at);
+      const bTs = Date.parse(b.exit_filled_at ?? b.filled_at ?? b.submitted_at);
+      return aTs - bTs;
+    })
+    .slice(-20);
+
+  if (realizedEvents.length === 0) {
+    return [validEquity, validEquity];
+  }
+
+  const realizedTotal = realizedEvents.reduce((sum, item) => sum + Number(item.realized_pnl ?? 0), 0);
+  const start = validEquity - realizedTotal;
+  const values: number[] = [start];
+  let running = start;
+
+  for (const event of realizedEvents) {
+    running += Number(event.realized_pnl ?? 0);
+    values.push(running);
+  }
+
+  return values;
+}
+
+function projectSpark(values: number[], width: number, height: number): SparkPoint[] {
+  if (values.length === 0 || width <= 0 || height <= 0) return [];
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(max - min, 1);
+  const span = Math.max(values.length - 1, 1);
+
+  return values.map((value, index) => ({
+    x: (index / span) * Math.max(width - 1, 1),
+    y: ((max - value) / range) * Math.max(height - 1, 1),
+  }));
+}
+
+export default function HomeScreen(_props: Props): React.JSX.Element {
   const [proposal, setProposal] = useState<Proposal | null>(null);
-  const [risk, setRisk] = useState<RiskProfile | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [brokerAccount, setBrokerAccount] = useState<BrokerAccount | null>(null);
-  const [todayUnrealized, setTodayUnrealized] = useState<number>(0);
-  const [todayRealized, setTodayRealized] = useState<number>(0);
-  const [cumulativeRealized, setCumulativeRealized] = useState<number>(0);
-  const [todayTrades, setTodayTrades] = useState<number>(0);
-  const [outcomesMap, setOutcomesMap] = useState<Record<string, OrderOutcome>>({});
-  const [chartRange, setChartRange] = useState<ChartRange>("1D");
-  const [chartWidth, setChartWidth] = useState<number>(0);
+  const [mode, setMode] = useState<"paper" | "live">("paper");
+  const [summary, setSummary] = useState<TodaySummary>({ executed: 0, closed: 0, expired: 0 });
+  const [equity, setEquity] = useState<number>(0);
+  const [buyingPower, setBuyingPower] = useState<number>(0);
+  const [systemPaused, setSystemPaused] = useState<boolean>(false);
+  const [sparkValues, setSparkValues] = useState<number[]>([0, 0]);
+  const [sparkWidth, setSparkWidth] = useState<number>(0);
+  const [loadingAction, setLoadingAction] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const isSameDay = (isoDate: string): boolean => {
-    const a = new Date(isoDate);
-    const b = new Date();
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  };
+  const [errorText, setErrorText] = useState<string>("");
+  const [result, setResult] = useState<ProposalDecisionResult | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     setRefreshing(true);
-    setError(null);
+    setErrorText("");
     try {
-      const [currentProposal, recentOrders, account, outcomes, riskProfile, execSummary1d, execSummaryAll] = await Promise.all([
+      const [current, history, execRecent, risk, activeMode, account] = await Promise.all([
         getCurrentProposal(),
-        getRecentOrders(),
-        getBrokerAccount(),
-        getOrderOutcomes(),
+        getProposalsHistory(200),
+        getExecutionRecent(200).catch(() => ({ items: [] })),
         getRisk(),
-        getExecutionSummary("1d").catch(() => null as ExecutionSummary | null),
-        getExecutionSummary("all").catch(() => null as ExecutionSummary | null),
+        getActiveBrokerMode(),
+        getBrokerAccount(),
       ]);
-      setProposal(currentProposal);
-      setOrders(recentOrders);
-      setBrokerAccount(account);
-      setRisk(riskProfile);
-      setOutcomesMap(outcomes);
 
-      let unrealized = 0;
-      let realized = Number(execSummary1d?.total_realized_pnl ?? 0);
-      let tradesToday = 0;
-      for (const order of recentOrders) {
-        if (!isSameDay(order.submitted_at)) continue;
-        tradesToday += 1;
-        const outcome: OrderOutcome | undefined = outcomes[order.id];
-        if (!outcome) continue;
-        unrealized += outcome.unrealized_pnl;
-        // Realized P/L comes from execution analytics summary; keep only unrealized here.
-      }
+      const executedToday = history.items.filter((item) => (item.status === "executed" || item.status === "approved") && historyFilledToday(item)).length;
+      const expiredToday = history.items.filter((item) => item.status === "expired" && isTodayLocal(item.decision_at ?? item.created_at)).length;
+      const closedToday = (execRecent.items ?? []).filter((item) => isTodayLocal(item.exit_filled_at)).length;
 
-      setTodayTrades(tradesToday);
-      setTodayUnrealized(Number(unrealized.toFixed(2)));
-      setTodayRealized(Number(realized.toFixed(2)));
-      setCumulativeRealized(Number((execSummaryAll?.total_realized_pnl ?? 0).toFixed(2)));
-    } catch (e) {
-      setError(toApiError(e));
+      const currentEquity = Number(account?.equity ?? 0);
+      const currentBuyingPower = Number(account?.buying_power ?? 0);
+
+      setProposal(current);
+      setMode(activeMode);
+      setSummary({ executed: executedToday, closed: closedToday, expired: expiredToday });
+      setSystemPaused(Boolean(risk.kill_switch_enabled));
+      setEquity(Number.isFinite(currentEquity) ? currentEquity : 0);
+      setBuyingPower(Number.isFinite(currentBuyingPower) ? currentBuyingPower : 0);
+      setSparkValues(buildSparkSeries(Number.isFinite(currentEquity) ? currentEquity : 0, execRecent.items ?? []));
+    } catch (error) {
+      setErrorText(toApiError(error));
     } finally {
       setRefreshing(false);
     }
@@ -85,160 +142,58 @@ export default function HomeScreen(): React.JSX.Element {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      return () => {
+        if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      };
     }, [load])
   );
 
-  const systemStatus = risk?.kill_switch_enabled ? "Paused" : "Active";
-  const systemStatusColor = risk?.kill_switch_enabled ? "#64748b" : "#166534";
-  const brokerBuyingPower = brokerAccount ? Number(brokerAccount.buying_power || 0) : 0;
-  const brokerEquity = brokerAccount ? Number(brokerAccount.equity || 0) : 0;
-  const appBudget = risk
-    ? risk.capital_limit_mode === "usd"
-      ? Math.min(Math.max(risk.capital_limit_value, 0), Math.max(brokerEquity, 0))
-      : Math.max(brokerEquity, 0) * Math.max(0, Math.min(1, risk.capital_limit_value))
-    : 0;
-  const dayNetPnl = todayRealized + todayUnrealized;
-  const dayNetPnlText = `${dayNetPnl >= 0 ? "+" : "-"}${usd(Math.abs(dayNetPnl))}`;
-  const dayNetPnlPct = appBudget > 0 ? dayNetPnl / appBudget : 0;
-  const dayNetPnlPctText = `${dayNetPnlPct >= 0 ? "+" : ""}${(dayNetPnlPct * 100).toFixed(2)}%`;
-  const currentInvestmentValue = appBudget + cumulativeRealized + todayUnrealized;
-  const valueColor = "#0f172a";
-  const pnlColor = dayNetPnl >= 0 ? "#15803d" : "#b91c1c";
-  const recentOrderPreview = orders.slice(0, 3);
+  const canAct = useMemo(() => {
+    if (!proposal) return false;
+    if (proposal.is_shadow || proposal.status === "shadow") return false;
+    if (proposal.status !== "pending") return false;
+    return !isExpired(proposal.expires_at);
+  }, [proposal]);
 
-  const chartSeries = useMemo<ChartPoint[]>(() => {
-    const now = new Date();
-    const base = appBudget || 0;
+  const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 52), [sparkValues, sparkWidth]);
 
-    const makeBuckets = (): Array<{ key: string; label: string; start: Date; end: Date }> => {
-      if (chartRange === "1D") {
-        const result: Array<{ key: string; label: string; start: Date; end: Date }> = [];
-        for (let i = 7; i >= 0; i -= 1) {
-          const end = new Date(now.getTime() - i * 3 * 60 * 60 * 1000);
-          const start = new Date(end.getTime() - 3 * 60 * 60 * 1000);
-          const label = `${end.getHours().toString().padStart(2, "0")}:00`;
-          result.push({ key: label, label, start, end });
-        }
-        return result;
-      }
-
-      if (chartRange === "1W") {
-        const result: Array<{ key: string; label: string; start: Date; end: Date }> = [];
-        for (let i = 6; i >= 0; i -= 1) {
-          const day = new Date(now);
-          day.setDate(now.getDate() - i);
-          const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0);
-          const end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59);
-          const label = day.toLocaleDateString("en-US", { weekday: "short" });
-          result.push({ key: `${day.toISOString().slice(0, 10)}`, label, start, end });
-        }
-        return result;
-      }
-
-      if (chartRange === "1M") {
-        const result: Array<{ key: string; label: string; start: Date; end: Date }> = [];
-        for (let i = 29; i >= 0; i -= 1) {
-          const day = new Date(now);
-          day.setDate(now.getDate() - i);
-          const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0);
-          const end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59);
-          const label = day.getDate().toString();
-          result.push({ key: `${day.toISOString().slice(0, 10)}`, label, start, end });
-        }
-        return result;
-      }
-
-      if (chartRange === "3M") {
-        const result: Array<{ key: string; label: string; start: Date; end: Date }> = [];
-        for (let i = 11; i >= 0; i -= 1) {
-          const end = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
-          const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-          const label = end.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-          result.push({ key: `${end.toISOString().slice(0, 10)}-wk`, label, start, end });
-        }
-        return result;
-      }
-
-      if (chartRange === "YTD") {
-        const result: Array<{ key: string; label: string; start: Date; end: Date }> = [];
-        for (let month = 0; month <= now.getMonth(); month += 1) {
-          const start = new Date(now.getFullYear(), month, 1, 0, 0, 0);
-          const end = new Date(now.getFullYear(), month + 1, 0, 23, 59, 59);
-          const label = start.toLocaleDateString("en-US", { month: "short" });
-          result.push({ key: `${now.getFullYear()}-${month + 1}`, label, start, end });
-        }
-        return result;
-      }
-
-      if (chartRange === "1Y") {
-        const result: Array<{ key: string; label: string; start: Date; end: Date }> = [];
-        for (let i = 11; i >= 0; i -= 1) {
-          const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const start = new Date(month.getFullYear(), month.getMonth(), 1, 0, 0, 0);
-          const end = new Date(month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59);
-          const label = month.toLocaleDateString("en-US", { month: "short" });
-          result.push({ key: `${month.getFullYear()}-${month.getMonth() + 1}`, label, start, end });
-        }
-        return result;
-      }
-
-      const earliestOrderTs = orders.length > 0 ? Math.min(...orders.map((o) => Date.parse(o.submitted_at))) : Date.now();
-      const earliest = new Date(Number.isFinite(earliestOrderTs) ? earliestOrderTs : Date.now());
-      const monthsDiff = Math.max(
-        1,
-        (now.getFullYear() - earliest.getFullYear()) * 12 + (now.getMonth() - earliest.getMonth()) + 1
-      );
-      const result: Array<{ key: string; label: string; start: Date; end: Date }> = [];
-      for (let i = monthsDiff - 1; i >= 0; i -= 1) {
-        const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const start = new Date(month.getFullYear(), month.getMonth(), 1, 0, 0, 0);
-        const end = new Date(month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59);
-        const label = month.toLocaleDateString("en-US", { month: "short" });
-        result.push({ key: `${month.getFullYear()}-${month.getMonth() + 1}`, label, start, end });
-      }
-      return result;
-    };
-
-    const buckets = makeBuckets();
-    const pnlByBucket: Record<string, number> = {};
-    for (const order of orders) {
-      const ts = new Date(order.submitted_at);
-      const outcome = outcomesMap[order.id];
-      const pnl = outcome ? outcome.realized_pnl + outcome.unrealized_pnl : 0;
-      const bucket = buckets.find((b) => ts >= b.start && ts <= b.end);
-      if (!bucket) continue;
-      pnlByBucket[bucket.key] = (pnlByBucket[bucket.key] ?? 0) + pnl;
-    }
-
-    let running = base;
-    const points = buckets.map((bucket) => {
-      running += pnlByBucket[bucket.key] ?? 0;
-      return { label: bucket.label, value: Number(running.toFixed(2)) };
-    });
-    return points.length > 0 ? points : [{ label: "Now", value: base }];
-  }, [appBudget, chartRange, orders, outcomesMap]);
-
-  const minCap = Math.min(...chartSeries.map((p) => p.value));
-  const maxCap = Math.max(...chartSeries.map((p) => p.value));
-  const capRange = Math.max(maxCap - minCap, 1);
-  const chartHeight = 120;
-  const hasEnoughChartData = chartSeries.length >= 8;
-
-  const plotPoints = useMemo(() => {
-    if (chartSeries.length === 0 || chartWidth <= 0) return [];
-    const span = Math.max(chartSeries.length - 1, 1);
-    return chartSeries.map((point, index) => {
-      const x = (index / span) * Math.max(chartWidth - 1, 1);
-      const y = ((maxCap - point.value) / capRange) * Math.max(chartHeight - 1, 1);
-      return { x, y, label: point.label, value: point.value };
-    });
-  }, [capRange, chartSeries, chartHeight, chartWidth, maxCap]);
-
-  const onChartLayout = (event: LayoutChangeEvent) => {
+  const onSparkLayout = (event: LayoutChangeEvent) => {
     const next = Math.max(1, Math.floor(event.nativeEvent.layout.width));
-    if (next !== chartWidth) setChartWidth(next);
+    if (next !== sparkWidth) setSparkWidth(next);
   };
+
+  const onApprove = useCallback(async () => {
+    if (!proposal) return;
+    try {
+      setLoadingAction(true);
+      const response = await approveProposal(proposal.id);
+      setResult(response);
+      await getOrderOutcomes();
+      await load();
+    } catch (error) {
+      Alert.alert("Approve failed", toApiError(error));
+    } finally {
+      setLoadingAction(false);
+    }
+  }, [load, proposal]);
+
+  const onReject = useCallback(async () => {
+    if (!proposal) return;
+    try {
+      setLoadingAction(true);
+      const response = await rejectProposal(proposal.id);
+      setResult(response);
+      await load();
+    } catch (error) {
+      Alert.alert("Reject failed", toApiError(error));
+    } finally {
+      setLoadingAction(false);
+    }
+  }, [load, proposal]);
+
+  const notional = proposal ? proposal.entry.limit_price * proposal.qty : 0;
+  const riskUsd = proposal ? notional * proposal.stop_loss_pct : 0;
 
   return (
     <ScrollView
@@ -246,252 +201,202 @@ export default function HomeScreen(): React.JSX.Element {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
     >
-      {error ? <ErrorState message={error} onRetry={load} /> : null}
+      <View style={styles.statusStrip}>
+        <Text style={styles.statusStripText}>{`Mode: Alpaca • ${mode === "live" ? "Live" : "Paper"}`}</Text>
+        <Text style={[styles.statusStripBadge, systemPaused ? styles.pausedBadge : styles.activeBadge]}>
+          {systemPaused ? "Paused" : "Active"}
+        </Text>
+      </View>
 
-      <View style={styles.capitalCard}>
-        <View style={styles.heroTopRow}>
-          <View style={styles.heroLeft}>
-            <View style={styles.valueRow}>
-              <Text style={[styles.capitalValueTop, { color: valueColor }]}>{usd(currentInvestmentValue)}</Text>
-            </View>
-            <Text style={[styles.dayChangeText, { color: pnlColor }]}>
-              {dayNetPnlText} ({dayNetPnlPctText}) Today
-            </Text>
+      <View style={styles.sectionWrap}>
+        <Text style={styles.sectionTitle}>Action Required</Text>
+        {!proposal ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No proposals awaiting approval.</Text>
           </View>
-          <Text style={[styles.statusChip, { color: systemStatusColor, backgroundColor: risk?.kill_switch_enabled ? "#e2e8f0" : "#dcfce7" }]}>
-            {systemStatus}
-          </Text>
-        </View>
-
-        <View style={styles.rangeRow}>
-          {(["1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as ChartRange[]).map((range) => (
-            <Pressable key={range} style={[styles.rangePill, chartRange === range && styles.rangePillActive]} onPress={() => setChartRange(range)}>
-              <Text style={[styles.rangeText, chartRange === range && styles.rangeTextActive]}>{range}</Text>
-            </Pressable>
-          ))}
-        </View>
-        {hasEnoughChartData ? (
-          <>
-            <View style={styles.chartCanvas} onLayout={onChartLayout}>
-              {plotPoints.length > 0 ? (
-                <View
-                  style={[
-                    styles.chartBaseline,
-                    { top: plotPoints[0].y },
-                  ]}
-                />
-              ) : null}
-              {plotPoints.map((point, index) => {
-                if (index === 0) return null;
-                const prev = plotPoints[index - 1];
-                const dx = point.x - prev.x;
-                const dy = point.y - prev.y;
-                const length = Math.sqrt(dx * dx + dy * dy);
-                const angle = Math.atan2(dy, dx);
-                return (
-                  <View
-                    key={`seg-${index}`}
-                    style={[
-                      styles.chartSegment,
-                      {
-                        width: length,
-                        left: prev.x + dx / 2 - length / 2,
-                        top: prev.y + dy / 2,
-                        transform: [{ rotateZ: `${angle}rad` }],
-                      },
-                    ]}
-                  />
-                );
-              })}
-              {plotPoints.length > 0 ? (
-                <View
-                  style={[
-                    styles.chartEndpointDot,
-                    {
-                      left: plotPoints[plotPoints.length - 1].x - 2.5,
-                      top: plotPoints[plotPoints.length - 1].y - 2.5,
-                    },
-                  ]}
-                />
-              ) : null}
-            </View>
-            <View style={styles.chartLabelsRow}>
-              {chartSeries.length > 0 ? (
-                <Text style={styles.sparklineDay}>{chartSeries[0].label}</Text>
-              ) : (
-                <Text style={styles.sparklineDay}> </Text>
-              )}
-              {chartSeries.length > 2 ? (
-                <Text style={styles.sparklineDay}>{chartSeries[Math.floor(chartSeries.length / 2)].label}</Text>
-              ) : (
-                <Text style={styles.sparklineDay}> </Text>
-              )}
-              {chartSeries.length > 1 ? (
-                <Text style={styles.sparklineDay}>{chartSeries[chartSeries.length - 1].label}</Text>
-              ) : (
-                <Text style={styles.sparklineDay}> </Text>
-              )}
-            </View>
-          </>
         ) : (
-          <Text style={styles.subtle}>Chart hidden until enough data is available.</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>BUY {proposal.symbol}</Text>
+            <Text style={styles.row}>Recommendation: {recommendationText(proposal.strength)}</Text>
+            <Text style={styles.row}>Entry: {usd(proposal.entry.limit_price)} • Qty {proposal.qty}</Text>
+            <Text style={styles.row}>Risk {usd(riskUsd)} • Capital {(proposal.capital_used_pct * 100).toFixed(2)}%</Text>
+
+            <Text style={styles.label}>Expires In</Text>
+            <Countdown expiresAtISO={proposal.expires_at} onExpire={load} />
+
+            {!canAct ? <Text style={styles.statusText}>Status: {proposal.status === "pending" ? "expired" : proposal.status}</Text> : null}
+
+            <Pressable style={[styles.actionButton, (!canAct || loadingAction) && styles.disabled]} disabled={!canAct || loadingAction} onPress={() => void onApprove()}>
+              <Text style={styles.actionButtonText}>{loadingAction ? "Approving..." : "Approve"}</Text>
+            </Pressable>
+            <Pressable style={[styles.rejectButton, (!canAct || loadingAction) && styles.disabled]} disabled={!canAct || loadingAction} onPress={() => void onReject()}>
+              <Text style={styles.actionButtonText}>Reject</Text>
+            </Pressable>
+          </View>
         )}
       </View>
 
-      <View style={styles.metaRow}>
-        <Text style={styles.metaLabel}>Buying Power</Text>
-        <Text style={styles.metaValue}>{usdCompact(brokerBuyingPower)}</Text>
-      </View>
-      <View style={styles.metaRow}>
-        <Text style={styles.metaLabel}>Broker Equity</Text>
-        <Text style={styles.metaValue}>{usdCompact(brokerEquity)}</Text>
-      </View>
-
-      <Text style={styles.sectionTitle}>Today Summary</Text>
-      <View style={styles.capitalCard}>
-        <Text style={styles.capitalLabel}>Today's Trades</Text>
-        <Text style={styles.capitalValueSmall}>{todayTrades}/{risk?.max_trades_per_day ?? 0}</Text>
-      </View>
-
-      <Text style={styles.sectionTitle}>Current Proposal</Text>
-      {proposal ? (
-        <View style={styles.block}>
-          <ProposalCard proposal={proposal} availableCapital={brokerAccount && risk ? appBudget : null} onPress={() => navigation.navigate("Proposal", { proposalId: proposal.id })} />
-          <Countdown expiresAtISO={proposal.expires_at} />
-        </View>
-      ) : (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>No high-quality setup detected.</Text>
-          <Pressable style={styles.secondary} onPress={load}>
-            <Text style={styles.secondaryText}>Refresh</Text>
-          </Pressable>
-        </View>
-      )}
-
-      <Text style={styles.sectionTitle}>Recent Orders</Text>
-      {recentOrderPreview.length === 0 ? (
-        <Text style={styles.subtle}>No recent orders</Text>
-      ) : (
-        recentOrderPreview.map((order) => (
-          <View key={order.id} style={styles.orderCard}>
-            <Text style={styles.orderTitle}>
-              {order.symbol} • {order.status}
-            </Text>
-            <Text style={styles.subtle}>{dateTime(order.submitted_at)}</Text>
+      <View style={styles.sectionWrap}>
+        <Text style={styles.sectionTitle}>Live Snapshot</Text>
+        <View style={styles.snapshotCard}>
+          <View style={styles.snapshotHead}>
+            <Text style={styles.snapshotValue}>{usd(equity)}</Text>
+            <Text style={styles.snapshotMeta}>{`Buying Power ${usd(buyingPower)}`}</Text>
           </View>
-        ))
-      )}
+
+          <View style={styles.sparkWrap} onLayout={onSparkLayout}>
+            {sparkPoints.map((point, index) => {
+              if (index === 0) return null;
+              const prev = sparkPoints[index - 1];
+              const dx = point.x - prev.x;
+              const dy = point.y - prev.y;
+              const length = Math.sqrt(dx * dx + dy * dy);
+              const angle = Math.atan2(dy, dx);
+              return (
+                <View
+                  key={`seg-${index}`}
+                  style={[
+                    styles.sparkSegment,
+                    {
+                      width: length,
+                      left: prev.x + dx / 2 - length / 2,
+                      top: prev.y + dy / 2,
+                      transform: [{ rotateZ: `${angle}rad` }],
+                    },
+                  ]}
+                />
+              );
+            })}
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.sectionWrap}>
+        <Text style={styles.sectionTitle}>Today</Text>
+        <View style={styles.todayGrid}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Executed Today</Text>
+            <Text style={styles.metricValue}>{summary.executed}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Closed</Text>
+            <Text style={styles.metricValue}>{summary.closed}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Expired</Text>
+            <Text style={styles.metricValue}>{summary.expired}</Text>
+          </View>
+        </View>
+      </View>
+
+      {result ? (
+        <View style={styles.result}>
+          <Text style={styles.resultTitle}>Result: {result.status}</Text>
+          <Text>{result.message}</Text>
+        </View>
+      ) : null}
+
+      {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-  content: { padding: 16, gap: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
-  valueRow: { flexDirection: "row", alignItems: "baseline", gap: 8 },
-  heroTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 },
-  heroLeft: { gap: 2 },
-  capitalCard: {
-    backgroundColor: "white",
-    borderColor: "#f1f5f9",
+  content: { padding: 16, gap: 14, paddingBottom: 24 },
+  statusStrip: {
+    borderRadius: 10,
     borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    gap: 8,
-  },
-  metaRow: {
-    backgroundColor: "white",
-    borderColor: "#f1f5f9",
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  metaLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  metaValue: { color: "#0f172a", fontSize: 15, fontWeight: "700" },
-  capitalLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  capitalValueTop: { fontSize: 38, fontWeight: "800", letterSpacing: -0.8 },
-  dayPnlText: { fontSize: 18, fontWeight: "700" },
-  dayChangeText: { fontSize: 13, fontWeight: "700" },
-  statusValue: { fontSize: 20, fontWeight: "800" },
-  statusTextSmall: { fontSize: 12, fontWeight: "700", marginTop: 2 },
-  good: { color: "#166534" },
-  bad: { color: "#b91c1c" },
-  capitalValue: { color: "#0f172a", fontSize: 22, fontWeight: "700" },
-  capitalValueSmall: { color: "#0f172a", fontSize: 18, fontWeight: "700" },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  statusChip: { fontSize: 12, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  rangeRow: { flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap" },
-  rangePill: {
-    borderWidth: 0,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: "transparent",
-  },
-  rangePillActive: { backgroundColor: "#0f172a" },
-  rangeText: { fontSize: 11, fontWeight: "700", color: "#64748b" },
-  rangeTextActive: { color: "#ffffff" },
-  chartCanvas: {
-    position: "relative",
-    height: 120,
-    marginTop: 8,
-  },
-  chartBaseline: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: 1,
-    borderTopWidth: 1,
-    borderTopColor: "#cbd5e1",
-    borderStyle: "dashed",
-  },
-  chartSegment: {
-    position: "absolute",
-    height: 1,
-    backgroundColor: "#334155",
-    borderRadius: 999,
-  },
-  chartEndpointDot: {
-    position: "absolute",
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: "#334155",
-  },
-  chartLabelsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 2 },
-  sparklineDay: { color: "#64748b", fontSize: 10 },
-  block: { gap: 12 },
-  secondary: {
-    borderWidth: 1,
-    borderColor: "#94a3b8",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  secondaryText: { color: "#334155", fontWeight: "700" },
-  empty: {
-    backgroundColor: "white",
-    borderColor: "#e2e8f0",
-    borderWidth: 1,
+  statusStripText: { color: "#334155", fontSize: 12, fontWeight: "700" },
+  statusStripBadge: { fontSize: 11, fontWeight: "800", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, overflow: "hidden" },
+  activeBadge: { color: "#166534", backgroundColor: "#dcfce7" },
+  pausedBadge: { color: "#64748b", backgroundColor: "#e2e8f0" },
+  sectionWrap: { gap: 8 },
+  sectionTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
+  emptyCard: {
     borderRadius: 12,
-    padding: 14,
-  },
-  emptyText: { color: "#334155" },
-  subtle: { color: "#64748b" },
-  orderCard: {
-    backgroundColor: "white",
-    borderColor: "#e2e8f0",
     borderWidth: 1,
-    borderRadius: 12,
+    borderColor: "#e2e8f0",
+    backgroundColor: "white",
     padding: 12,
   },
-  orderTitle: { fontWeight: "700", color: "#1f2937" },
+  emptyText: { color: "#64748b" },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    borderColor: "#e2e8f0",
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+  },
+  cardTitle: { color: "#0f172a", fontSize: 28, fontWeight: "800" },
+  row: { color: "#1f2937", fontWeight: "600" },
+  label: { color: "#334155", fontWeight: "600", marginTop: 2 },
+  statusText: { color: "#b91c1c", fontWeight: "700" },
+  actionButton: {
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: "#166534",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  rejectButton: {
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: "#b91c1c",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionButtonText: { color: "white", fontWeight: "700" },
+  disabled: { opacity: 0.5 },
+  snapshotCard: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 12,
+    gap: 10,
+  },
+  snapshotHead: { gap: 2 },
+  snapshotValue: { color: "#0f172a", fontSize: 24, fontWeight: "800" },
+  snapshotMeta: { color: "#475569", fontSize: 12, fontWeight: "600" },
+  sparkWrap: {
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    position: "relative",
+    overflow: "hidden",
+  },
+  sparkSegment: {
+    position: "absolute",
+    height: 2,
+    backgroundColor: "#0f766e",
+    borderRadius: 2,
+  },
+  todayGrid: { flexDirection: "row", gap: 8 },
+  metricCard: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "white",
+    padding: 10,
+    gap: 2,
+  },
+  metricLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
+  metricValue: { color: "#0f172a", fontSize: 22, fontWeight: "800" },
+  result: { backgroundColor: "white", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, padding: 12, gap: 6 },
+  resultTitle: { fontWeight: "700" },
+  error: { color: "#b91c1c", fontSize: 13 },
 });
