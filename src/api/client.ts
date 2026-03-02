@@ -359,11 +359,9 @@ export async function alpacaDisconnect(options?: DisconnectOptions): Promise<{ d
         () => api.post("/broker/alpaca/disconnect", { env: mode, account_id: accountId }),
         () => api.post("/broker/alpaca/disconnect", undefined, { params: { mode } }),
         () => api.post("/broker/alpaca/disconnect", undefined, { params: { env: mode } }),
-        () => api.delete("/broker/alpaca/disconnect", { data: { mode, accountId } }),
-        () => api.delete("/broker/alpaca/disconnect", { data: { mode, account_id: accountId } }),
         () => api.post("/broker/alpaca/disconnect"),
       ]
-    : [() => api.post("/broker/alpaca/disconnect"), () => api.delete("/broker/alpaca/disconnect")];
+    : [() => api.post("/broker/alpaca/disconnect")];
 
   let lastError: unknown = null;
   for (const attempt of attempts) {
