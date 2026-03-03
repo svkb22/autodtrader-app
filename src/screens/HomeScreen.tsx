@@ -13,7 +13,7 @@ import {
   rejectProposal,
   toApiError,
 } from "@/api/client";
-import { ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem } from "@/api/types";
+import { ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile } from "@/api/types";
 import Countdown from "@/components/Countdown";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
 import { usd } from "@/utils/format";
@@ -49,8 +49,15 @@ function historyFilledToday(item: ProposalHistoryItem): boolean {
   return isTodayLocal(item.prices.filled_at ?? item.order_summary?.filled_at ?? item.decision_at ?? item.created_at);
 }
 
-function buildSparkSeries(equity: number, executions: ExecutionRecentItem[]): number[] {
+function computeAllocatedCapital(equity: number, risk: RiskProfile): number {
   const validEquity = Number.isFinite(equity) ? equity : 0;
+  if (!Number.isFinite(risk.capital_limit_value)) return validEquity;
+  if (risk.capital_limit_mode === "usd") return Math.max(0, risk.capital_limit_value);
+  return Math.max(0, validEquity * risk.capital_limit_value);
+}
+
+function buildSparkSeries(allocatedCapital: number, executions: ExecutionRecentItem[]): number[] {
+  const baseline = Number.isFinite(allocatedCapital) ? allocatedCapital : 0;
 
   const realizedEvents = executions
     .filter((item) => typeof item.realized_pnl === "number")
@@ -62,13 +69,11 @@ function buildSparkSeries(equity: number, executions: ExecutionRecentItem[]): nu
     .slice(-20);
 
   if (realizedEvents.length === 0) {
-    return [validEquity, validEquity];
+    return [baseline, baseline];
   }
 
-  const realizedTotal = realizedEvents.reduce((sum, item) => sum + Number(item.realized_pnl ?? 0), 0);
-  const start = validEquity - realizedTotal;
-  const values: number[] = [start];
-  let running = start;
+  const values: number[] = [baseline];
+  let running = baseline;
 
   for (const event of realizedEvents) {
     running += Number(event.realized_pnl ?? 0);
@@ -97,6 +102,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   const [summary, setSummary] = useState<TodaySummary>({ executed: 0, closed: 0, expired: 0 });
   const [equity, setEquity] = useState<number>(0);
   const [buyingPower, setBuyingPower] = useState<number>(0);
+  const [allocatedCapital, setAllocatedCapital] = useState<number>(0);
   const [systemPaused, setSystemPaused] = useState<boolean>(false);
   const [sparkValues, setSparkValues] = useState<number[]>([0, 0]);
   const [sparkWidth, setSparkWidth] = useState<number>(0);
@@ -125,6 +131,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
 
       const currentEquity = Number(account?.equity ?? 0);
       const currentBuyingPower = Number(account?.buying_power ?? 0);
+      const capital = computeAllocatedCapital(Number.isFinite(currentEquity) ? currentEquity : 0, risk);
 
       setProposal(current);
       setMode(activeMode);
@@ -132,7 +139,8 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       setSystemPaused(Boolean(risk.kill_switch_enabled));
       setEquity(Number.isFinite(currentEquity) ? currentEquity : 0);
       setBuyingPower(Number.isFinite(currentBuyingPower) ? currentBuyingPower : 0);
-      setSparkValues(buildSparkSeries(Number.isFinite(currentEquity) ? currentEquity : 0, execRecent.items ?? []));
+      setAllocatedCapital(capital);
+      setSparkValues(buildSparkSeries(capital, execRecent.items ?? []));
     } catch (error) {
       setErrorText(toApiError(error));
     } finally {
@@ -157,6 +165,10 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   }, [proposal]);
 
   const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 52), [sparkValues, sparkWidth]);
+  const trackedCapital = useMemo(() => {
+    const last = sparkValues[sparkValues.length - 1];
+    return Number.isFinite(last) ? Number(last) : allocatedCapital;
+  }, [allocatedCapital, sparkValues]);
 
   const onSparkLayout = (event: LayoutChangeEvent) => {
     const next = Math.max(1, Math.floor(event.nativeEvent.layout.width));
@@ -240,8 +252,8 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
         <Text style={styles.sectionTitle}>Live Snapshot</Text>
         <View style={styles.snapshotCard}>
           <View style={styles.snapshotHead}>
-            <Text style={styles.snapshotValue}>{usd(equity)}</Text>
-            <Text style={styles.snapshotMeta}>{`Buying Power ${usd(buyingPower)}`}</Text>
+            <Text style={styles.snapshotValue}>{usd(trackedCapital)}</Text>
+            <Text style={styles.snapshotMeta}>{`Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`}</Text>
           </View>
 
           <View style={styles.sparkWrap} onLayout={onSparkLayout}>
