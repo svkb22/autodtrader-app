@@ -1,5 +1,5 @@
 import api, { getExecutionRecent, getOrderOutcomes, getProposalsHistory, getRecentOrders } from "@/api/client";
-import { ActivityItem, ActivityRange, ActivityResponse, ActivityStatus, ExecutionRecentItem, Order, ProposalHistoryItem } from "@/api/types";
+import { ActivityItem, ActivityRange, ActivityResponse, ActivityStatus, ExecutionRecentItem, Order, OrderOutcome, ProposalHistoryItem } from "@/api/types";
 
 type ActivityParams = {
   status?: ActivityStatus | "all";
@@ -33,7 +33,7 @@ function withinRange(iso: string, range: ActivityRange): boolean {
 
 function mapHistoryToActivity(
   historyItems: ProposalHistoryItem[],
-  outcomes: Record<string, { realized_pnl: number; unrealized_pnl: number }>,
+  outcomes: Record<string, OrderOutcome>,
   recentOrders: Order[],
   execRecent: ExecutionRecentItem[],
   range: ActivityRange,
@@ -70,11 +70,19 @@ function mapHistoryToActivity(
       const realizedPnl = exec?.realized_pnl ?? undefined;
       const unrealizedPnl = outcome ? outcome.unrealized_pnl : undefined;
       const combinedPnl = realizedPnl ?? (outcome ? outcome.realized_pnl + outcome.unrealized_pnl : undefined);
+      const positionState: "open" | "closed" =
+        outcome?.state === "closed" ||
+        exec?.status === "closed" ||
+        exec?.actual_exit_fill != null ||
+        realizedPnl != null
+          ? "closed"
+          : "open";
       return {
         id: item.id,
         symbol: item.symbol,
         side: normalizedSide,
         status: normalizedStatus,
+        position_state: positionState,
         reason: mapReason(item),
         created_at: item.created_at,
         decided_at: item.decision_at ?? undefined,
@@ -92,7 +100,7 @@ function mapHistoryToActivity(
         filled_avg_price: exec?.actual_fill ?? item.prices.filled_avg_price,
         exit_fill_price: exec?.actual_exit_fill ?? null,
         filled_at: exec?.filled_at ?? item.prices.filled_at,
-        order_status: exec?.status ?? item.order_summary?.status ?? null,
+        order_status: matchedOrder?.status ?? item.order_summary?.status ?? exec?.status ?? null,
         execution_order_id: exec?.order_id ?? matchedOrder?.alpaca_order_id ?? null,
         rationale: item.rationale,
         stock_overview: item.stock_overview ?? null,
@@ -107,7 +115,7 @@ function mapHistoryToActivity(
 
 function mapOrphanOrdersToActivity(
   orders: Order[],
-  outcomes: Record<string, { realized_pnl: number; unrealized_pnl: number }>,
+  outcomes: Record<string, OrderOutcome>,
   execRecent: ExecutionRecentItem[],
   knownProposalIds: Set<string>,
   range: ActivityRange,
@@ -122,11 +130,22 @@ function mapOrphanOrdersToActivity(
       const outcome = outcomes[order.id];
       const exec = order.alpaca_order_id ? execByOrderId.get(order.alpaca_order_id) : undefined;
       const realizedPnl = exec?.realized_pnl ?? undefined;
+      const positionState: "open" | "closed" =
+        outcome?.state === "closed" ||
+        order.status === "filled" ||
+        order.status === "canceled" ||
+        order.status === "expired" ||
+        order.status === "replaced" ||
+        exec?.actual_exit_fill != null ||
+        realizedPnl != null
+          ? "closed"
+          : "open";
       return {
         id: order.client_order_id,
         symbol: order.symbol,
         side: (order.side.toLowerCase() === "sell" ? "short" : "long") as "long" | "short",
         status: "executed" as const,
+        position_state: positionState,
         reason: "Order detected; proposal history unavailable",
         created_at: order.submitted_at,
         decided_at: order.submitted_at,
@@ -141,7 +160,7 @@ function mapOrphanOrdersToActivity(
         filled_avg_price: exec?.actual_fill ?? order.avg_fill_price,
         exit_fill_price: exec?.actual_exit_fill ?? null,
         filled_at: order.filled_at,
-        order_status: exec?.status ?? order.status,
+        order_status: order.status ?? exec?.status ?? null,
         execution_order_id: exec?.order_id ?? order.alpaca_order_id,
         rationale: [],
         stock_overview: null,

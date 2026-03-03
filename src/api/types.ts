@@ -269,6 +269,7 @@ export type ActivityItem = {
   symbol: string;
   side: "long" | "short";
   status: ActivityStatus;
+  position_state?: "open" | "closed";
   reason?: string;
   created_at: string;
   decided_at?: string;

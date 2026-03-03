@@ -20,7 +20,9 @@ export type UnifiedActivityItem = {
 };
 
 function tradeSummary(item: ActivityItem): { summary: string; pnlValue?: number | null } {
-  const isOpen = item.status === "open" || (item.status === "executed" && !item.exit_fill_price && item.realized_pnl == null);
+  const isOpen =
+    item.position_state === "open" ||
+    (item.position_state == null && (item.status === "open" || (item.status === "executed" && !item.exit_fill_price && item.realized_pnl == null)));
   if (isOpen) {
     if (typeof item.unrealized_pnl === "number") {
       return { summary: "Entry Filled • Position Open", pnlValue: item.unrealized_pnl };
