@@ -90,13 +90,28 @@ export default function HistoryScreen(): React.JSX.Element {
     setRefreshing(true);
     setError(null);
     try {
-      const [activity, currentProposal, mode] = await Promise.all([getActivity({ status: "all", range, limit: 200 }), getCurrentProposal(), getActiveBrokerMode()]);
+      const [activity, mode] = await Promise.all([getActivity({ status: "all", range, limit: 200 }), getActiveBrokerMode()]);
       const mapped = activity.items.map((item: ActivityItem) => toUnifiedFromActivity(item));
-      const pendingProposal = currentProposal && currentProposal.status === "pending" ? toUnifiedFromPendingProposal(currentProposal as Proposal) : null;
-      const merged = pendingProposal ? [pendingProposal, ...mapped] : mapped;
-      merged.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-      setItems(merged);
+      mapped.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      setItems(mapped);
       setActiveMode(mode);
+
+      // Enrich with pending proposal without blocking initial trade metrics render.
+      void getCurrentProposal()
+        .then((currentProposal) => {
+          const pendingProposal =
+            currentProposal && currentProposal.status === "pending"
+              ? toUnifiedFromPendingProposal(currentProposal as Proposal)
+              : null;
+          if (!pendingProposal) return;
+          setItems((prev) => {
+            if (prev.some((item) => item.kind === "PROPOSAL" && item.id === pendingProposal.id)) return prev;
+            const merged = [pendingProposal, ...prev];
+            merged.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+            return merged;
+          });
+        })
+        .catch(() => undefined);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not load history.";
       setError(message);
