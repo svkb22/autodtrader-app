@@ -308,13 +308,18 @@ function isDisconnectContractMismatch(error: unknown): boolean {
 
 function isModeConnectedInStatus(payload: unknown, mode: "paper" | "live"): boolean | null {
   const data = (payload ?? {}) as {
-    alpaca?: { paper?: { connected?: boolean }; live?: { connected?: boolean } };
+    alpaca?: {
+      paper?: { connected?: boolean; accountId?: string | null; connectedAt?: string | null };
+      live?: { connected?: boolean; accountId?: string | null; connectedAt?: string | null };
+    };
     connected?: boolean;
     mode?: "paper" | "live" | null;
   };
 
   if (data.alpaca && typeof data.alpaca[mode]?.connected === "boolean") {
-    return Boolean(data.alpaca[mode]?.connected);
+    const slot = data.alpaca[mode];
+    const hasIdentity = Boolean(slot?.accountId || slot?.connectedAt);
+    return Boolean(slot?.connected) && hasIdentity;
   }
 
   if (typeof data.connected === "boolean") {
@@ -330,9 +335,13 @@ function isModeConnectedInStatus(payload: unknown, mode: "paper" | "live"): bool
 
 async function verifyDisconnected(mode?: "paper" | "live"): Promise<boolean> {
   if (!mode) return true;
-  const statusRes = await api.get<unknown>("/broker/status");
-  const connected = isModeConnectedInStatus(statusRes.data, mode);
-  return connected === false;
+  for (let i = 0; i < 5; i += 1) {
+    const statusRes = await api.get<unknown>("/broker/status");
+    const connected = isModeConnectedInStatus(statusRes.data, mode);
+    if (connected === false) return true;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return false;
 }
 
 type DisconnectOptions = {

@@ -33,12 +33,21 @@ const EMPTY_CONNECTION: ConnectionNode = {
 };
 
 function normalizeConnection(input: unknown): ConnectionNode {
-  const value = (input ?? {}) as Partial<ConnectionNode>;
+  const value = (input ?? {}) as Partial<ConnectionNode> & {
+    connected_at?: string | null;
+    account_id?: string | null;
+    last_error?: string | null;
+  };
+  const accountId = value.accountId ?? value.account_id ?? null;
+  const connectedAt = value.connectedAt ?? value.connected_at ?? null;
+  const rawConnected = Boolean(value.connected);
+  // Guard against stale backend flags like connected=true with no account identity.
+  const connected = rawConnected && Boolean(accountId || connectedAt);
   return {
-    connected: Boolean(value.connected),
-    connectedAt: value.connectedAt ?? null,
-    accountId: value.accountId ?? null,
-    lastError: value.lastError ?? null,
+    connected,
+    connectedAt,
+    accountId,
+    lastError: value.lastError ?? value.last_error ?? null,
   };
 }
 
