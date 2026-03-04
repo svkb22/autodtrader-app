@@ -20,7 +20,12 @@ type Props = {
 
 const ALPACA_SIGNUP_URL = "https://app.alpaca.markets/signup";
 
-WebBrowser.maybeCompleteAuthSession();
+if (
+  typeof window !== "undefined" &&
+  window.location.pathname.includes("broker/callback")
+) {
+  WebBrowser.maybeCompleteAuthSession();
+}
 
 const initialStatus: BrokerStatusResponse = {
   alpaca: {
