@@ -258,7 +258,7 @@ export async function authFirebase(idToken: string): Promise<FirebaseAuthRespons
       },
     });
   }
-  const res = await api.post<FirebaseAuthResponse>("/auth/firebase", { idToken });
+  const res = await api.post<FirebaseAuthResponse>("/auth/firebase", { idToken }, { timeout: 45000 });
   return res.data;
 }
 
