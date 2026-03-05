@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import { getActivity } from "@/api/activity";
-import { getCurrentProposal } from "@/api/client";
+import { getCurrentProposal, getProposalsHistory } from "@/api/client";
 import { ActivityItem, ActivityRange, Proposal } from "@/api/types";
 import ErrorState from "@/components/ErrorState";
-import { toUnifiedFromActivity, toUnifiedFromPendingProposal, UnifiedActivityItem } from "@/domain/activityTypes";
+import { toUnifiedFromActivity, toUnifiedFromPendingProposal, toUnifiedFromProposalHistory, UnifiedActivityItem } from "@/domain/activityTypes";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
 import { usd } from "@/utils/format";
 
@@ -83,39 +83,40 @@ export default function HistoryScreen(): React.JSX.Element {
   const [range, setRange] = useState<ActivityRange>("1w");
   const [activeMode, setActiveMode] = useState<"paper" | "live">("paper");
   const [items, setItems] = useState<UnifiedActivityItem[]>([]);
+  const [loadingData, setLoadingData] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setRefreshing(true);
+    setLoadingData(true);
     setError(null);
     try {
-      const [activity, mode] = await Promise.all([getActivity({ status: "all", range, limit: 120, includeOverview: false }), getActiveBrokerMode()]);
-      const mapped = activity.items.map((item: ActivityItem) => toUnifiedFromActivity(item));
-      mapped.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-      setItems(mapped);
+      const [activity, proposals, mode, currentProposal] = await Promise.all([
+        getActivity({ status: "all", range, limit: 120, includeOverview: false }),
+        getProposalsHistory(200),
+        getActiveBrokerMode(),
+        getCurrentProposal().catch(() => null),
+      ]);
+      const tradeMapped = activity.items.map((item: ActivityItem) => toUnifiedFromActivity(item));
+      const proposalMapped = proposals.items.map((item) => toUnifiedFromProposalHistory(item));
+      const pendingProposal =
+        currentProposal && currentProposal.status === "pending"
+          ? toUnifiedFromPendingProposal(currentProposal as Proposal)
+          : null;
+      const merged = [...tradeMapped, ...proposalMapped, ...(pendingProposal ? [pendingProposal] : [])];
+      const deduped = new Map<string, UnifiedActivityItem>();
+      for (const item of merged) {
+        deduped.set(`${item.kind}:${item.id}`, item);
+      }
+      const sorted = [...deduped.values()].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      setItems(sorted);
       setActiveMode(mode);
-
-      // Enrich with pending proposal without blocking initial trade metrics render.
-      void getCurrentProposal()
-        .then((currentProposal) => {
-          const pendingProposal =
-            currentProposal && currentProposal.status === "pending"
-              ? toUnifiedFromPendingProposal(currentProposal as Proposal)
-              : null;
-          if (!pendingProposal) return;
-          setItems((prev) => {
-            if (prev.some((item) => item.kind === "PROPOSAL" && item.id === pendingProposal.id)) return prev;
-            const merged = [pendingProposal, ...prev];
-            merged.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-            return merged;
-          });
-        })
-        .catch(() => undefined);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not load history.";
       setError(message);
     } finally {
+      setLoadingData(false);
       setRefreshing(false);
     }
   }, [range]);
@@ -174,6 +175,12 @@ export default function HistoryScreen(): React.JSX.Element {
           <View style={styles.metricsCard}>
             <Text style={[styles.metricValue, { color: historyMetrics.realized >= 0 ? "#166534" : "#b91c1c" }]}>Realized P/L ({range.toUpperCase()}): {historyMetrics.realized >= 0 ? "+" : ""}{usd(historyMetrics.realized)}</Text>
             <Text style={styles.metricSub}>Closed trades: {historyMetrics.closedCount}</Text>
+            {loadingData ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color="#64748b" />
+                <Text style={styles.loadingText}>Updating range...</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.pillRow}>
@@ -279,6 +286,8 @@ const styles = StyleSheet.create({
   },
   metricValue: { fontSize: 16, fontWeight: "800" },
   metricSub: { color: "#334155", fontSize: 13, fontWeight: "600" },
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
+  loadingText: { color: "#64748b", fontSize: 12, fontWeight: "600" },
   pillRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   pill: {
     paddingHorizontal: 12,

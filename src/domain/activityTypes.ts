@@ -1,4 +1,4 @@
-import { ActivityItem, Proposal } from "@/api/types";
+import { ActivityItem, Proposal, ProposalHistoryItem } from "@/api/types";
 
 export type ActivityKind = "TRADE" | "PROPOSAL";
 
@@ -115,5 +115,38 @@ export function toUnifiedFromPendingProposal(proposal: Proposal): UnifiedActivit
     entryPrice: proposal.entry.limit_price,
     reason: undefined,
     raw: proposal,
+  };
+}
+
+export function toUnifiedFromProposalHistory(item: ProposalHistoryItem): UnifiedActivityItem {
+  const statusLabel =
+    item.status === "rejected"
+      ? "Rejected"
+      : item.status === "expired"
+      ? "Expired"
+      : item.status === "blocked"
+      ? "Blocked"
+      : item.status === "shadow"
+      ? "Shadow"
+      : item.status === "executed" || item.status === "approved"
+      ? "Executed"
+      : "Pending";
+  const statusTone: UnifiedActivityItem["statusTone"] =
+    statusLabel === "Rejected" ? "amber" : statusLabel === "Blocked" ? "blue" : statusLabel === "Pending" ? "green" : "slate";
+
+  return {
+    id: item.id,
+    kind: "PROPOSAL",
+    symbol: item.symbol,
+    side: item.side === "short" ? "short" : "long",
+    createdAt: item.created_at,
+    statusLabel,
+    statusTone,
+    summary: item.reason ?? statusLabel,
+    riskUsedUsd: item.risk?.max_loss_usd,
+    entryPrice: item.prices.entry_limit_price ?? item.prices.filled_avg_price ?? null,
+    exitPrice: item.prices.stop_loss_price ?? item.prices.take_profit_price ?? null,
+    reason: item.reason ?? undefined,
+    raw: item as unknown as ActivityItem | Proposal,
   };
 }

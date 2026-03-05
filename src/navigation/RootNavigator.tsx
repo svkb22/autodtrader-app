@@ -17,7 +17,6 @@ import EmailAuthScreen from "@/screens/EmailAuthScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import HistoryScreen from "@/screens/HistoryScreen";
 import HomeScreen from "@/screens/HomeScreen";
-import PositionsScreen from "@/screens/PositionsScreen";
 import ProposalDetailScreen from "@/screens/ProposalDetailScreen";
 import RiskSettingsScreen from "@/screens/RiskSettingsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
@@ -85,13 +84,6 @@ function AppTabs(): React.JSX.Element {
         component={HomeScreen}
         options={{
           tabBarIcon: ({ focused }) => <TabBadge label="H" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="Positions"
-        component={PositionsScreen}
-        options={{
-          tabBarIcon: ({ focused }) => <TabBadge label="P" focused={focused} />,
         }}
       />
       <Tabs.Screen

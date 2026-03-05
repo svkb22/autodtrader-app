@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Alert, LayoutChangeEvent, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
+import { getActivity } from "@/api/activity";
 import {
   approveProposal,
   getBrokerAccount,
@@ -14,7 +15,7 @@ import {
   rejectProposal,
   toApiError,
 } from "@/api/client";
-import { ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile, TradingWindowStatus } from "@/api/types";
+import { ActivityItem, ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile, TradingWindowStatus } from "@/api/types";
 import Countdown from "@/components/Countdown";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
 import { usd } from "@/utils/format";
@@ -24,6 +25,8 @@ type Props = {
   route?: { params?: { proposalId?: string } };
 };
 
+type SparkRange = "1d" | "1w" | "1m";
+type PositionStateFilter = "all" | "open" | "closed";
 type SparkPoint = { x: number; y: number };
 
 type TodaySummary = {
@@ -57,17 +60,29 @@ function computeAllocatedCapital(equity: number, risk: RiskProfile): number {
   return Math.max(0, validEquity * risk.capital_limit_value);
 }
 
-function buildSparkSeries(allocatedCapital: number, executions: ExecutionRecentItem[]): number[] {
+function rangeCutoff(range: SparkRange): number {
+  const now = Date.now();
+  if (range === "1d") return now - 24 * 60 * 60 * 1000;
+  if (range === "1w") return now - 7 * 24 * 60 * 60 * 1000;
+  return now - 30 * 24 * 60 * 60 * 1000;
+}
+
+function buildSparkSeries(allocatedCapital: number, executions: ExecutionRecentItem[], range: SparkRange): number[] {
   const baseline = Number.isFinite(allocatedCapital) ? allocatedCapital : 0;
+  const cutoff = rangeCutoff(range);
 
   const realizedEvents = executions
     .filter((item) => typeof item.realized_pnl === "number")
+    .filter((item) => {
+      const ts = Date.parse(item.exit_filled_at ?? item.filled_at ?? item.submitted_at);
+      return !Number.isNaN(ts) && ts >= cutoff;
+    })
     .sort((a, b) => {
       const aTs = Date.parse(a.exit_filled_at ?? a.filled_at ?? a.submitted_at);
       const bTs = Date.parse(b.exit_filled_at ?? b.filled_at ?? b.submitted_at);
       return aTs - bTs;
     })
-    .slice(-20);
+    .slice(-80);
 
   if (realizedEvents.length === 0) {
     return [baseline, baseline];
@@ -75,12 +90,10 @@ function buildSparkSeries(allocatedCapital: number, executions: ExecutionRecentI
 
   const values: number[] = [baseline];
   let running = baseline;
-
   for (const event of realizedEvents) {
     running += Number(event.realized_pnl ?? 0);
     values.push(running);
   }
-
   return values;
 }
 
@@ -97,16 +110,37 @@ function projectSpark(values: number[], width: number, height: number): SparkPoi
   }));
 }
 
+function isOpenPosition(item: ActivityItem): boolean {
+  if (item.position_state) return item.position_state === "open";
+  return item.status === "open" || (item.status === "executed" && !item.exit_fill_price && item.realized_pnl == null);
+}
+
+function positionPnl(item: ActivityItem): number {
+  if (isOpenPosition(item)) return item.unrealized_pnl ?? 0;
+  return item.realized_pnl ?? item.pnl_total ?? 0;
+}
+
+function deviceTimezoneLabel(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Local";
+  } catch {
+    return "Local";
+  }
+}
+
 export default function HomeScreen(_props: Props): React.JSX.Element {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [mode, setMode] = useState<"paper" | "live">("paper");
   const [summary, setSummary] = useState<TodaySummary>({ executed: 0, closed: 0, expired: 0 });
+  const [todayPositions, setTodayPositions] = useState<ActivityItem[]>([]);
+  const [positionFilter, setPositionFilter] = useState<PositionStateFilter>("all");
+  const [executionRecent, setExecutionRecent] = useState<ExecutionRecentItem[]>([]);
+  const [sparkRange, setSparkRange] = useState<SparkRange>("1d");
   const [equity, setEquity] = useState<number>(0);
   const [buyingPower, setBuyingPower] = useState<number>(0);
   const [allocatedCapital, setAllocatedCapital] = useState<number>(0);
   const [systemPaused, setSystemPaused] = useState<boolean>(false);
   const [tradingWindow, setTradingWindow] = useState<TradingWindowStatus | null>(null);
-  const [sparkValues, setSparkValues] = useState<number[]>([0, 0]);
   const [sparkWidth, setSparkWidth] = useState<number>(0);
   const [loadingAction, setLoadingAction] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -118,19 +152,25 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     setRefreshing(true);
     setErrorText("");
     try {
-      const [current, history, execRecent, risk, activeMode, account, windowStatus] = await Promise.all([
+      const [current, history, execRecent, risk, activeMode, account, windowStatus, activity] = await Promise.all([
         getCurrentProposal(),
         getProposalsHistory(200),
-        getExecutionRecent(200).catch(() => ({ items: [] })),
+        getExecutionRecent(400).catch(() => ({ items: [] })),
         getRisk(),
         getActiveBrokerMode(),
         getBrokerAccount(),
         getTradingWindowStatus().catch(() => null),
+        getActivity({ status: "all", range: "1w", limit: 200, includeOverview: false }).catch(() => ({ items: [] })),
       ]);
 
       const executedToday = history.items.filter((item) => (item.status === "executed" || item.status === "approved") && historyFilledToday(item)).length;
       const expiredToday = history.items.filter((item) => item.status === "expired" && isTodayLocal(item.decision_at ?? item.created_at)).length;
       const closedToday = (execRecent.items ?? []).filter((item) => isTodayLocal(item.exit_filled_at)).length;
+
+      const todayTradeRows = (activity.items ?? [])
+        .filter((item) => item.status === "open" || item.status === "executed")
+        .filter((item) => isTodayLocal(item.created_at))
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 
       const currentEquity = Number(account?.equity ?? 0);
       const currentBuyingPower = Number(account?.buying_power ?? 0);
@@ -139,12 +179,13 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       setProposal(current);
       setMode(activeMode);
       setSummary({ executed: executedToday, closed: closedToday, expired: expiredToday });
+      setTodayPositions(todayTradeRows);
+      setExecutionRecent(execRecent.items ?? []);
       setSystemPaused(Boolean(risk.kill_switch_enabled));
       setTradingWindow(windowStatus);
       setEquity(Number.isFinite(currentEquity) ? currentEquity : 0);
       setBuyingPower(Number.isFinite(currentBuyingPower) ? currentBuyingPower : 0);
       setAllocatedCapital(capital);
-      setSparkValues(buildSparkSeries(capital, execRecent.items ?? []));
     } catch (error) {
       setErrorText(toApiError(error));
     } finally {
@@ -168,11 +209,18 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     return !isExpired(proposal.expires_at);
   }, [proposal]);
 
-  const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 52), [sparkValues, sparkWidth]);
+  const sparkValues = useMemo(() => buildSparkSeries(allocatedCapital, executionRecent, sparkRange), [allocatedCapital, executionRecent, sparkRange]);
+  const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 58), [sparkValues, sparkWidth]);
+
   const trackedCapital = useMemo(() => {
     const last = sparkValues[sparkValues.length - 1];
     return Number.isFinite(last) ? Number(last) : allocatedCapital;
   }, [allocatedCapital, sparkValues]);
+
+  const filteredPositions = useMemo(() => {
+    if (positionFilter === "all") return todayPositions;
+    return todayPositions.filter((item) => (positionFilter === "open" ? isOpenPosition(item) : !isOpenPosition(item)));
+  }, [positionFilter, todayPositions]);
 
   const tradingWindowText = useMemo(() => {
     if (!tradingWindow) return "Trading Window: --";
@@ -235,18 +283,14 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       <View style={styles.statusStrip}>
         <View style={styles.statusStripLeft}>
           <Text style={styles.statusStripText}>{`Mode: Alpaca • ${mode === "live" ? "Live" : "Paper"}`}</Text>
+          <Text style={styles.statusStripSubtext}>{`Device Timezone: ${deviceTimezoneLabel()}`}</Text>
           <Text style={styles.statusStripSubtext}>{tradingWindowText}</Text>
         </View>
         <View style={styles.statusStripBadges}>
           <Text style={[styles.statusStripBadge, systemPaused ? styles.pausedBadge : styles.activeBadge]}>
             {systemPaused ? "Paused" : "Active"}
           </Text>
-          <Text
-            style={[
-              styles.statusStripBadge,
-              tradingWindow?.is_open ? styles.windowOpenBadge : styles.windowClosedBadge,
-            ]}
-          >
+          <Text style={[styles.statusStripBadge, tradingWindow?.is_open ? styles.windowOpenBadge : styles.windowClosedBadge]}>
             {tradingWindow?.is_open ? "Window Open" : "Window Closed"}
           </Text>
         </View>
@@ -288,6 +332,14 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
             <Text style={styles.snapshotMeta}>{`Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`}</Text>
           </View>
 
+          <View style={styles.pillRow}>
+            {(["1d", "1w", "1m"] as SparkRange[]).map((item) => (
+              <Pressable key={item} style={[styles.pill, sparkRange === item && styles.pillActive]} onPress={() => setSparkRange(item)}>
+                <Text style={[styles.pillText, sparkRange === item && styles.pillTextActive]}>{item.toUpperCase()}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           <View style={styles.sparkWrap} onLayout={onSparkLayout}>
             {sparkPoints.map((point, index) => {
               if (index === 0) return null;
@@ -319,17 +371,67 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
         <Text style={styles.sectionTitle}>Today</Text>
         <View style={styles.todayGrid}>
           <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Executed Today</Text>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>Executed Today</Text>
+              <Pressable onPress={() => Alert.alert("Executed Today", "Count of proposals that were approved/executed and filled today.")}>
+                <Text style={styles.infoIcon}>i</Text>
+              </Pressable>
+            </View>
             <Text style={styles.metricValue}>{summary.executed}</Text>
           </View>
           <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Closed</Text>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>Closed</Text>
+              <Pressable onPress={() => Alert.alert("Closed", "Count of trades that reached a closed state today (exit filled).") }>
+                <Text style={styles.infoIcon}>i</Text>
+              </Pressable>
+            </View>
             <Text style={styles.metricValue}>{summary.closed}</Text>
           </View>
           <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Expired</Text>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>Expired</Text>
+              <Pressable onPress={() => Alert.alert("Expired", "Count of proposals that expired today without execution.")}>
+                <Text style={styles.infoIcon}>i</Text>
+              </Pressable>
+            </View>
             <Text style={styles.metricValue}>{summary.expired}</Text>
           </View>
+        </View>
+
+        <View style={styles.tableCard}>
+          <View style={styles.tableHeaderRow}>
+            <Text style={styles.tableTitle}>Today Positions</Text>
+            <View style={styles.pillRow}>
+              {(["all", "open", "closed"] as PositionStateFilter[]).map((filter) => (
+                <Pressable key={filter} style={[styles.pill, positionFilter === filter && styles.pillActive]} onPress={() => setPositionFilter(filter)}>
+                  <Text style={[styles.pillText, positionFilter === filter && styles.pillTextActive]}>{filter.toUpperCase()}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.tableHeadCols}>
+            <Text style={[styles.tableCol, styles.colSymbol]}>Symbol</Text>
+            <Text style={[styles.tableCol, styles.colState]}>State</Text>
+            <Text style={[styles.tableCol, styles.colPnl]}>P/L</Text>
+          </View>
+
+          {filteredPositions.length === 0 ? (
+            <Text style={styles.emptyText}>No positions for this filter today.</Text>
+          ) : (
+            filteredPositions.map((item) => {
+              const open = isOpenPosition(item);
+              const pnl = positionPnl(item);
+              return (
+                <View key={item.id} style={styles.tableRow}>
+                  <Text style={[styles.tableCol, styles.colSymbol]}>{item.symbol}</Text>
+                  <Text style={[styles.tableCol, styles.colState, open ? styles.openState : styles.closedState]}>{open ? "Open" : "Closed"}</Text>
+                  <Text style={[styles.tableCol, styles.colPnl, pnl >= 0 ? styles.posPnl : styles.negPnl]}>{pnl >= 0 ? "+" : ""}{usd(pnl)}</Text>
+                </View>
+              );
+            })
+          )}
         </View>
       </View>
 
@@ -371,81 +473,47 @@ const styles = StyleSheet.create({
   windowClosedBadge: { color: "#7c2d12", backgroundColor: "#ffedd5" },
   sectionWrap: { gap: 8 },
   sectionTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
-  emptyCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "white",
-    padding: 12,
-  },
+  emptyCard: { borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 12 },
   emptyText: { color: "#64748b" },
-  card: {
-    backgroundColor: "white",
-    borderRadius: 14,
-    borderColor: "#e2e8f0",
-    borderWidth: 1,
-    padding: 14,
-    gap: 8,
-  },
+  card: { backgroundColor: "white", borderRadius: 14, borderColor: "#e2e8f0", borderWidth: 1, padding: 14, gap: 8 },
   cardTitle: { color: "#0f172a", fontSize: 28, fontWeight: "800" },
   row: { color: "#1f2937", fontWeight: "600" },
   label: { color: "#334155", fontWeight: "600", marginTop: 2 },
   statusText: { color: "#b91c1c", fontWeight: "700" },
-  actionButton: {
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: "#166534",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 4,
-  },
-  rejectButton: {
-    height: 46,
-    borderRadius: 10,
-    backgroundColor: "#b91c1c",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  actionButton: { height: 48, borderRadius: 10, backgroundColor: "#166534", alignItems: "center", justifyContent: "center", marginTop: 4 },
+  rejectButton: { height: 46, borderRadius: 10, backgroundColor: "#b91c1c", alignItems: "center", justifyContent: "center" },
   actionButtonText: { color: "white", fontWeight: "700" },
   disabled: { opacity: 0.5 },
-  snapshotCard: {
-    backgroundColor: "white",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 12,
-    gap: 10,
-  },
+  snapshotCard: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#e2e8f0", padding: 12, gap: 10 },
   snapshotHead: { gap: 2 },
   snapshotValue: { color: "#0f172a", fontSize: 24, fontWeight: "800" },
   snapshotMeta: { color: "#475569", fontSize: 12, fontWeight: "600" },
-  sparkWrap: {
-    height: 52,
-    borderRadius: 8,
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    position: "relative",
-    overflow: "hidden",
-  },
-  sparkSegment: {
-    position: "absolute",
-    height: 2,
-    backgroundColor: "#0f766e",
-    borderRadius: 2,
-  },
+  sparkWrap: { height: 58, borderRadius: 8, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", position: "relative", overflow: "hidden" },
+  sparkSegment: { position: "absolute", height: 2, backgroundColor: "#0f766e", borderRadius: 2 },
+  pillRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: "#e2e8f0" },
+  pillActive: { backgroundColor: "#0f172a" },
+  pillText: { color: "#334155", fontWeight: "700", fontSize: 12 },
+  pillTextActive: { color: "#ffffff" },
   todayGrid: { flexDirection: "row", gap: 8 },
-  metricCard: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "white",
-    padding: 10,
-    gap: 2,
-  },
+  metricCard: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 10, gap: 2 },
+  metricHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  infoIcon: { width: 16, height: 16, borderRadius: 8, textAlign: "center", fontSize: 11, lineHeight: 16, fontWeight: "700", backgroundColor: "#e2e8f0", color: "#334155" },
   metricLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
   metricValue: { color: "#0f172a", fontSize: 22, fontWeight: "800" },
+  tableCard: { borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 10, gap: 8 },
+  tableHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  tableTitle: { color: "#0f172a", fontWeight: "700", fontSize: 14 },
+  tableHeadCols: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#f1f5f9", paddingBottom: 6 },
+  tableRow: { flexDirection: "row", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "#f8fafc" },
+  tableCol: { fontSize: 12, color: "#334155", fontWeight: "600" },
+  colSymbol: { flex: 1.3 },
+  colState: { flex: 1, textAlign: "center" },
+  colPnl: { flex: 1, textAlign: "right" },
+  openState: { color: "#1d4ed8" },
+  closedState: { color: "#166534" },
+  posPnl: { color: "#166534" },
+  negPnl: { color: "#b91c1c" },
   result: { backgroundColor: "white", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, padding: 12, gap: 6 },
   resultTitle: { fontWeight: "700" },
   error: { color: "#b91c1c", fontSize: 13 },
