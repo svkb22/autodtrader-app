@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
 import { track } from "@/analytics/track";
-import { updateRisk } from "@/api/client";
+import { toApiError, updateRisk } from "@/api/client";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 import { parseNumericInput, validateRiskDraft } from "@/onboarding/riskValidation";
 import { RiskDraft } from "@/onboarding/types";
@@ -74,9 +74,10 @@ export default function RiskGuardrailsOnboardingScreen({ navigation }: Props): R
       });
       track("onboarding_step_completed", { step: "risk_guardrails" });
       navigation.navigate("Notifications");
-    } catch {
+    } catch (error) {
       setRiskConfigured(false);
-      setSaveError("Couldn’t save right now. Please try again.");
+      const detail = toApiError(error);
+      setSaveError(detail || "Couldn’t save right now. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -90,7 +91,7 @@ export default function RiskGuardrailsOnboardingScreen({ navigation }: Props): R
       subtitle="The system will never exceed these."
       primaryLabel={saving ? "Saving..." : "Save & Continue"}
       onPrimary={onSave}
-      primaryDisabled={saving || !validation.valid}
+      primaryDisabled={saving}
       secondaryLabel="Back"
       onSecondary={navigation.goBack}
     >
@@ -136,6 +137,7 @@ export default function RiskGuardrailsOnboardingScreen({ navigation }: Props): R
           <Text style={styles.summaryLine}>Trades/day: {Number.isFinite(parsedDraft.max_trades_per_day) ? parsedDraft.max_trades_per_day : 1}</Text>
         </View>
 
+        {!validation.valid && validation.message ? <Text style={styles.error}>{validation.message}</Text> : null}
         {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
       </View>
     </OnboardingLayout>
