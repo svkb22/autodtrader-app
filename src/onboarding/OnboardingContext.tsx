@@ -1,5 +1,6 @@
 import React, { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from "react";
 
+import { getBrokerStatus } from "@/api/broker";
 import { useAuth } from "@/auth/AuthContext";
 import { clearOnboardingState, getOnboardingState, setOnboardingCompleted } from "@/onboarding/storage";
 import { OnboardingDraftState, NotificationsStatus, RiskDraft } from "@/onboarding/types";
@@ -68,11 +69,24 @@ export function OnboardingProvider({ children }: PropsWithChildren): React.JSX.E
     }
 
     getOnboardingState()
-      .then((state) => {
+      .then(async (state) => {
         if (!mounted) return;
-        setCompleted(state.completed);
-        setCompletedAt(state.completed_at);
-        setActivationMode(state.activation_mode);
+        let resolved = state;
+        if (!state.completed) {
+          try {
+            const broker = await getBrokerStatus();
+            const liveConnected = Boolean(broker?.alpaca?.live?.connected);
+            const paperConnected = Boolean(broker?.alpaca?.paper?.connected);
+            if (liveConnected || paperConnected) {
+              resolved = await setOnboardingCompleted(liveConnected ? "live" : "paper");
+            }
+          } catch {
+            // Keep onboarding flow if broker lookup fails.
+          }
+        }
+        setCompleted(resolved.completed);
+        setCompletedAt(resolved.completed_at);
+        setActivationMode(resolved.activation_mode);
         setDraft(defaultDraft);
       })
       .finally(() => {

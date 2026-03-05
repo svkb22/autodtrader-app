@@ -425,7 +425,7 @@ export async function updateRisk(payload: RiskProfileUpdate): Promise<RiskProfil
     mockRisk = { ...mockRisk, ...payload };
     return mockDelay(mockRisk);
   }
-  const res = await api.put<RiskProfile>("/risk", payload);
+  const res = await api.put<RiskProfile>("/risk", payload, { timeout: 45000 });
   return res.data;
 }
 

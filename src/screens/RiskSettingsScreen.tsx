@@ -122,8 +122,8 @@ export default function RiskSettingsScreen({ navigation }: Props): React.JSX.Ele
         <Switch value={killSwitch} onValueChange={setKillSwitch} />
       </View>
 
-      <Pressable style={styles.button} onPress={onSave} disabled={loading}>
-        <Text style={styles.buttonText}>Save Risk Settings</Text>
+      <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={onSave} disabled={loading}>
+        <Text style={styles.buttonText}>{loading ? "Saving..." : "Save Risk Settings"}</Text>
       </Pressable>
     </View>
   );
@@ -175,5 +175,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  buttonDisabled: { opacity: 0.6 },
   buttonText: { color: "white", fontWeight: "700" },
 });
