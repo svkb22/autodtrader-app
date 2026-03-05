@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, LayoutChangeEvent, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, LayoutChangeEvent, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { getActivity } from "@/api/activity";
@@ -34,6 +34,8 @@ type TodaySummary = {
   closed: number;
   expired: number;
 };
+
+type TodayTooltipKey = "executed" | "closed" | "expired" | null;
 
 function recommendationText(strength: Proposal["strength"]): string {
   if (strength === "strong") return "Strong";
@@ -144,7 +146,9 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   const [sparkWidth, setSparkWidth] = useState<number>(0);
   const [loadingAction, setLoadingAction] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [loadedOnce, setLoadedOnce] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>("");
+  const [hoveredTooltip, setHoveredTooltip] = useState<TodayTooltipKey>(null);
   const [result, setResult] = useState<ProposalDecisionResult | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -190,6 +194,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       setErrorText(toApiError(error));
     } finally {
       setRefreshing(false);
+      setLoadedOnce(true);
     }
   }, []);
 
@@ -273,6 +278,30 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
 
   const notional = proposal ? proposal.entry.limit_price * proposal.qty : 0;
   const riskUsd = proposal ? notional * proposal.stop_loss_pct : 0;
+  const actionWidgetLoading = refreshing && !loadedOnce;
+  const snapshotWidgetLoading = refreshing && !loadedOnce;
+  const todayWidgetLoading = refreshing && !loadedOnce;
+
+  const tooltipText = useCallback((key: Exclude<TodayTooltipKey, null>): string => {
+    if (key === "executed") {
+      return "Number of proposal signals that resulted in execution today. This is proposal-to-trade conversion, not just proposal creation.";
+    }
+    if (key === "closed") {
+      return "Number of trades that completed today (exit was filled). These are trade lifecycle closes, regardless of win/loss.";
+    }
+    return "Number of proposals that timed out today without becoming a trade execution.";
+  }, []);
+
+  const onInfoPress = useCallback(
+    (key: Exclude<TodayTooltipKey, null>, title: string) => {
+      if (Platform.OS === "web") {
+        setHoveredTooltip((prev) => (prev === key ? null : key));
+        return;
+      }
+      Alert.alert(title, tooltipText(key));
+    },
+    [tooltipText]
+  );
 
   return (
     <ScrollView
@@ -298,7 +327,12 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
 
       <View style={styles.sectionWrap}>
         <Text style={styles.sectionTitle}>Action Required</Text>
-        {!proposal ? (
+        {actionWidgetLoading ? (
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="small" color="#64748b" />
+            <Text style={styles.loadingText}>Loading proposal state...</Text>
+          </View>
+        ) : !proposal ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyText}>No proposals awaiting approval.</Text>
           </View>
@@ -327,112 +361,145 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       <View style={styles.sectionWrap}>
         <Text style={styles.sectionTitle}>Live Snapshot</Text>
         <View style={styles.snapshotCard}>
-          <View style={styles.snapshotHead}>
-            <Text style={styles.snapshotValue}>{usd(trackedCapital)}</Text>
-            <Text style={styles.snapshotMeta}>{`Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`}</Text>
-          </View>
+          {snapshotWidgetLoading ? (
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="small" color="#64748b" />
+              <Text style={styles.loadingText}>Loading snapshot...</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.snapshotHead}>
+                <Text style={styles.snapshotValue}>{usd(trackedCapital)}</Text>
+                <Text style={styles.snapshotMeta}>{`Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`}</Text>
+              </View>
 
-          <View style={styles.pillRow}>
-            {(["1d", "1w", "1m"] as SparkRange[]).map((item) => (
-              <Pressable key={item} style={[styles.pill, sparkRange === item && styles.pillActive]} onPress={() => setSparkRange(item)}>
-                <Text style={[styles.pillText, sparkRange === item && styles.pillTextActive]}>{item.toUpperCase()}</Text>
-              </Pressable>
-            ))}
-          </View>
+              <View style={styles.pillRow}>
+                {(["1d", "1w", "1m"] as SparkRange[]).map((item) => (
+                  <Pressable key={item} style={[styles.pill, sparkRange === item && styles.pillActive]} onPress={() => setSparkRange(item)}>
+                    <Text style={[styles.pillText, sparkRange === item && styles.pillTextActive]}>{item.toUpperCase()}</Text>
+                  </Pressable>
+                ))}
+              </View>
 
-          <View style={styles.sparkWrap} onLayout={onSparkLayout}>
-            {sparkPoints.map((point, index) => {
-              if (index === 0) return null;
-              const prev = sparkPoints[index - 1];
-              const dx = point.x - prev.x;
-              const dy = point.y - prev.y;
-              const length = Math.sqrt(dx * dx + dy * dy);
-              const angle = Math.atan2(dy, dx);
-              return (
-                <View
-                  key={`seg-${index}`}
-                  style={[
-                    styles.sparkSegment,
-                    {
-                      width: length,
-                      left: prev.x + dx / 2 - length / 2,
-                      top: prev.y + dy / 2,
-                      transform: [{ rotateZ: `${angle}rad` }],
-                    },
-                  ]}
-                />
-              );
-            })}
-          </View>
+              <View style={styles.sparkWrap} onLayout={onSparkLayout}>
+                {sparkPoints.map((point, index) => {
+                  if (index === 0) return null;
+                  const prev = sparkPoints[index - 1];
+                  const dx = point.x - prev.x;
+                  const dy = point.y - prev.y;
+                  const length = Math.sqrt(dx * dx + dy * dy);
+                  const angle = Math.atan2(dy, dx);
+                  return (
+                    <View
+                      key={`seg-${index}`}
+                      style={[
+                        styles.sparkSegment,
+                        {
+                          width: length,
+                          left: prev.x + dx / 2 - length / 2,
+                          top: prev.y + dy / 2,
+                          transform: [{ rotateZ: `${angle}rad` }],
+                        },
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+            </>
+          )}
         </View>
       </View>
 
       <View style={styles.sectionWrap}>
         <Text style={styles.sectionTitle}>Today</Text>
-        <View style={styles.todayGrid}>
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <Text style={styles.metricLabel}>Executed Today</Text>
-              <Pressable onPress={() => Alert.alert("Executed Today", "Count of proposals that were approved/executed and filled today.")}>
-                <Text style={styles.infoIcon}>i</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.metricValue}>{summary.executed}</Text>
+        {todayWidgetLoading ? (
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="small" color="#64748b" />
+            <Text style={styles.loadingText}>Loading today's widgets...</Text>
           </View>
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <Text style={styles.metricLabel}>Closed</Text>
-              <Pressable onPress={() => Alert.alert("Closed", "Count of trades that reached a closed state today (exit filled).") }>
-                <Text style={styles.infoIcon}>i</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.metricValue}>{summary.closed}</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <Text style={styles.metricLabel}>Expired</Text>
-              <Pressable onPress={() => Alert.alert("Expired", "Count of proposals that expired today without execution.")}>
-                <Text style={styles.infoIcon}>i</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.metricValue}>{summary.expired}</Text>
-          </View>
-        </View>
-
-        <View style={styles.tableCard}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={styles.tableTitle}>Today Positions</Text>
-            <View style={styles.pillRow}>
-              {(["all", "open", "closed"] as PositionStateFilter[]).map((filter) => (
-                <Pressable key={filter} style={[styles.pill, positionFilter === filter && styles.pillActive]} onPress={() => setPositionFilter(filter)}>
-                  <Text style={[styles.pillText, positionFilter === filter && styles.pillTextActive]}>{filter.toUpperCase()}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.tableHeadCols}>
-            <Text style={[styles.tableCol, styles.colSymbol]}>Symbol</Text>
-            <Text style={[styles.tableCol, styles.colState]}>State</Text>
-            <Text style={[styles.tableCol, styles.colPnl]}>P/L</Text>
-          </View>
-
-          {filteredPositions.length === 0 ? (
-            <Text style={styles.emptyText}>No positions for this filter today.</Text>
-          ) : (
-            filteredPositions.map((item) => {
-              const open = isOpenPosition(item);
-              const pnl = positionPnl(item);
-              return (
-                <View key={item.id} style={styles.tableRow}>
-                  <Text style={[styles.tableCol, styles.colSymbol]}>{item.symbol}</Text>
-                  <Text style={[styles.tableCol, styles.colState, open ? styles.openState : styles.closedState]}>{open ? "Open" : "Closed"}</Text>
-                  <Text style={[styles.tableCol, styles.colPnl, pnl >= 0 ? styles.posPnl : styles.negPnl]}>{pnl >= 0 ? "+" : ""}{usd(pnl)}</Text>
+        ) : (
+          <>
+            <View style={styles.todayGrid}>
+              <View style={styles.metricCard}>
+                <View style={styles.metricHeader}>
+                  <Text style={styles.metricLabel}>Executed Today</Text>
+                  <Pressable
+                    onPress={() => onInfoPress("executed", "Executed Today")}
+                    onHoverIn={() => setHoveredTooltip("executed")}
+                    onHoverOut={() => setHoveredTooltip((prev) => (prev === "executed" ? null : prev))}
+                  >
+                    <Text style={styles.infoIcon}>i</Text>
+                  </Pressable>
                 </View>
-              );
-            })
-          )}
-        </View>
+                <Text style={styles.metricValue}>{summary.executed}</Text>
+                {hoveredTooltip === "executed" ? <Text style={styles.tooltipText}>{tooltipText("executed")}</Text> : null}
+              </View>
+              <View style={styles.metricCard}>
+                <View style={styles.metricHeader}>
+                  <Text style={styles.metricLabel}>Closed</Text>
+                  <Pressable
+                    onPress={() => onInfoPress("closed", "Closed")}
+                    onHoverIn={() => setHoveredTooltip("closed")}
+                    onHoverOut={() => setHoveredTooltip((prev) => (prev === "closed" ? null : prev))}
+                  >
+                    <Text style={styles.infoIcon}>i</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.metricValue}>{summary.closed}</Text>
+                {hoveredTooltip === "closed" ? <Text style={styles.tooltipText}>{tooltipText("closed")}</Text> : null}
+              </View>
+              <View style={styles.metricCard}>
+                <View style={styles.metricHeader}>
+                  <Text style={styles.metricLabel}>Expired</Text>
+                  <Pressable
+                    onPress={() => onInfoPress("expired", "Expired")}
+                    onHoverIn={() => setHoveredTooltip("expired")}
+                    onHoverOut={() => setHoveredTooltip((prev) => (prev === "expired" ? null : prev))}
+                  >
+                    <Text style={styles.infoIcon}>i</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.metricValue}>{summary.expired}</Text>
+                {hoveredTooltip === "expired" ? <Text style={styles.tooltipText}>{tooltipText("expired")}</Text> : null}
+              </View>
+            </View>
+
+            <View style={styles.tableCard}>
+              <View style={styles.tableHeaderRow}>
+                <Text style={styles.tableTitle}>Today Positions</Text>
+                <View style={styles.pillRow}>
+                  {(["all", "open", "closed"] as PositionStateFilter[]).map((filter) => (
+                    <Pressable key={filter} style={[styles.pill, positionFilter === filter && styles.pillActive]} onPress={() => setPositionFilter(filter)}>
+                      <Text style={[styles.pillText, positionFilter === filter && styles.pillTextActive]}>{filter.toUpperCase()}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.tableHeadCols}>
+                <Text style={[styles.tableCol, styles.colSymbol]}>Symbol</Text>
+                <Text style={[styles.tableCol, styles.colState]}>State</Text>
+                <Text style={[styles.tableCol, styles.colPnl]}>P/L</Text>
+              </View>
+
+              {filteredPositions.length === 0 ? (
+                <Text style={styles.emptyText}>No positions for this filter today.</Text>
+              ) : (
+                filteredPositions.map((item) => {
+                  const open = isOpenPosition(item);
+                  const pnl = positionPnl(item);
+                  return (
+                    <View key={item.id} style={styles.tableRow}>
+                      <Text style={[styles.tableCol, styles.colSymbol]}>{item.symbol}</Text>
+                      <Text style={[styles.tableCol, styles.colState, open ? styles.openState : styles.closedState]}>{open ? "Open" : "Closed"}</Text>
+                      <Text style={[styles.tableCol, styles.colPnl, pnl >= 0 ? styles.posPnl : styles.negPnl]}>{pnl >= 0 ? "+" : ""}{usd(pnl)}</Text>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </>
+        )}
       </View>
 
       {result ? (
@@ -474,6 +541,8 @@ const styles = StyleSheet.create({
   sectionWrap: { gap: 8 },
   sectionTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
   emptyCard: { borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 12 },
+  loadingCard: { borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 12, flexDirection: "row", alignItems: "center", gap: 8 },
+  loadingText: { color: "#64748b", fontSize: 12, fontWeight: "600" },
   emptyText: { color: "#64748b" },
   card: { backgroundColor: "white", borderRadius: 14, borderColor: "#e2e8f0", borderWidth: 1, padding: 14, gap: 8 },
   cardTitle: { color: "#0f172a", fontSize: 28, fontWeight: "800" },
@@ -501,6 +570,7 @@ const styles = StyleSheet.create({
   infoIcon: { width: 16, height: 16, borderRadius: 8, textAlign: "center", fontSize: 11, lineHeight: 16, fontWeight: "700", backgroundColor: "#e2e8f0", color: "#334155" },
   metricLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
   metricValue: { color: "#0f172a", fontSize: 22, fontWeight: "800" },
+  tooltipText: { color: "#475569", fontSize: 11, fontWeight: "600", marginTop: 4 },
   tableCard: { borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 10, gap: 8 },
   tableHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   tableTitle: { color: "#0f172a", fontWeight: "700", fontSize: 14 },
