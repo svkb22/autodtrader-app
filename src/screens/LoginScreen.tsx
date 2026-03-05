@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { AntDesign } from "@expo/vector-icons";
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
@@ -144,7 +143,7 @@ export default function LoginScreen(): React.JSX.Element {
         disabled={!request || busy || !googleConfigured}
       >
         <View style={styles.googleButtonInner}>
-          <AntDesign name="google" size={18} color="#0f172a" />
+          <Image source={require("@/../assets/icons/google-g.png")} style={styles.googleIcon} />
           <Text style={styles.googleButtonText}>{googleLoading ? "Connecting..." : "Continue with Google"}</Text>
         </View>
       </Pressable>
@@ -197,6 +196,7 @@ const styles = StyleSheet.create({
   },
   googleButtonText: { color: "#0f172a", fontWeight: "700" },
   googleButtonInner: { flexDirection: "row", alignItems: "center", gap: 8 },
+  googleIcon: { width: 18, height: 18 },
   primaryText: { color: "white", fontWeight: "700" },
   disabled: { opacity: 0.5 },
   status: { color: "#334155", textAlign: "center" },
