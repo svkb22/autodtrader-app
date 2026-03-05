@@ -59,6 +59,19 @@ export type RiskProfile = {
 
 export type RiskProfileUpdate = Partial<RiskProfile>;
 
+export type TradingWindowStatus = {
+  now_et: string;
+  start_et: string;
+  end_et: string;
+  is_open: boolean;
+  enabled: boolean;
+  effective_enabled: boolean;
+  next_open_et: string | null;
+  symbol_cap_enabled: boolean;
+  symbol_cap_scope: "orders" | "proposals" | string;
+  max_trades_per_symbol_per_day: number;
+};
+
 export type ProposalStatus =
   | "pending"
   | "approved"

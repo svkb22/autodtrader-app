@@ -19,6 +19,7 @@ import {
   ProposalDecisionResult,
   RiskProfile,
   RiskProfileUpdate,
+  TradingWindowStatus,
 } from "@/api/types";
 
 const USE_MOCKS = process.env.EXPO_PUBLIC_USE_MOCKS === "true";
@@ -425,6 +426,25 @@ export async function updateRisk(payload: RiskProfileUpdate): Promise<RiskProfil
     return mockDelay(mockRisk);
   }
   const res = await api.put<RiskProfile>("/risk", payload);
+  return res.data;
+}
+
+export async function getTradingWindowStatus(): Promise<TradingWindowStatus> {
+  if (USE_MOCKS) {
+    return mockDelay({
+      now_et: new Date().toISOString(),
+      start_et: "10:00",
+      end_et: "12:00",
+      is_open: true,
+      enabled: true,
+      effective_enabled: true,
+      next_open_et: null,
+      symbol_cap_enabled: true,
+      symbol_cap_scope: "orders",
+      max_trades_per_symbol_per_day: 2,
+    });
+  }
+  const res = await api.get<TradingWindowStatus>("/system/trading-window");
   return res.data;
 }
 

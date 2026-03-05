@@ -10,10 +10,11 @@ import {
   getOrderOutcomes,
   getProposalsHistory,
   getRisk,
+  getTradingWindowStatus,
   rejectProposal,
   toApiError,
 } from "@/api/client";
-import { ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile } from "@/api/types";
+import { ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile, TradingWindowStatus } from "@/api/types";
 import Countdown from "@/components/Countdown";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
 import { usd } from "@/utils/format";
@@ -104,6 +105,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   const [buyingPower, setBuyingPower] = useState<number>(0);
   const [allocatedCapital, setAllocatedCapital] = useState<number>(0);
   const [systemPaused, setSystemPaused] = useState<boolean>(false);
+  const [tradingWindow, setTradingWindow] = useState<TradingWindowStatus | null>(null);
   const [sparkValues, setSparkValues] = useState<number[]>([0, 0]);
   const [sparkWidth, setSparkWidth] = useState<number>(0);
   const [loadingAction, setLoadingAction] = useState<boolean>(false);
@@ -116,13 +118,14 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     setRefreshing(true);
     setErrorText("");
     try {
-      const [current, history, execRecent, risk, activeMode, account] = await Promise.all([
+      const [current, history, execRecent, risk, activeMode, account, windowStatus] = await Promise.all([
         getCurrentProposal(),
         getProposalsHistory(200),
         getExecutionRecent(200).catch(() => ({ items: [] })),
         getRisk(),
         getActiveBrokerMode(),
         getBrokerAccount(),
+        getTradingWindowStatus().catch(() => null),
       ]);
 
       const executedToday = history.items.filter((item) => (item.status === "executed" || item.status === "approved") && historyFilledToday(item)).length;
@@ -137,6 +140,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       setMode(activeMode);
       setSummary({ executed: executedToday, closed: closedToday, expired: expiredToday });
       setSystemPaused(Boolean(risk.kill_switch_enabled));
+      setTradingWindow(windowStatus);
       setEquity(Number.isFinite(currentEquity) ? currentEquity : 0);
       setBuyingPower(Number.isFinite(currentBuyingPower) ? currentBuyingPower : 0);
       setAllocatedCapital(capital);
@@ -169,6 +173,21 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     const last = sparkValues[sparkValues.length - 1];
     return Number.isFinite(last) ? Number(last) : allocatedCapital;
   }, [allocatedCapital, sparkValues]);
+
+  const tradingWindowText = useMemo(() => {
+    if (!tradingWindow) return "Trading Window: --";
+    const base = `Trading Window: ${tradingWindow.start_et}-${tradingWindow.end_et} ET`;
+    if (tradingWindow.is_open) return `${base} (Open)`;
+    if (tradingWindow.next_open_et) {
+      const next = new Date(tradingWindow.next_open_et);
+      if (!Number.isNaN(next.getTime())) {
+        const hh = String(next.getHours()).padStart(2, "0");
+        const mm = String(next.getMinutes()).padStart(2, "0");
+        return `${base} (Closed, next ${hh}:${mm} ET)`;
+      }
+    }
+    return `${base} (Closed)`;
+  }, [tradingWindow]);
 
   const onSparkLayout = (event: LayoutChangeEvent) => {
     const next = Math.max(1, Math.floor(event.nativeEvent.layout.width));
@@ -214,10 +233,23 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
     >
       <View style={styles.statusStrip}>
-        <Text style={styles.statusStripText}>{`Mode: Alpaca • ${mode === "live" ? "Live" : "Paper"}`}</Text>
-        <Text style={[styles.statusStripBadge, systemPaused ? styles.pausedBadge : styles.activeBadge]}>
-          {systemPaused ? "Paused" : "Active"}
-        </Text>
+        <View style={styles.statusStripLeft}>
+          <Text style={styles.statusStripText}>{`Mode: Alpaca • ${mode === "live" ? "Live" : "Paper"}`}</Text>
+          <Text style={styles.statusStripSubtext}>{tradingWindowText}</Text>
+        </View>
+        <View style={styles.statusStripBadges}>
+          <Text style={[styles.statusStripBadge, systemPaused ? styles.pausedBadge : styles.activeBadge]}>
+            {systemPaused ? "Paused" : "Active"}
+          </Text>
+          <Text
+            style={[
+              styles.statusStripBadge,
+              tradingWindow?.is_open ? styles.windowOpenBadge : styles.windowClosedBadge,
+            ]}
+          >
+            {tradingWindow?.is_open ? "Window Open" : "Window Closed"}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.sectionWrap}>
@@ -326,11 +358,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 10,
   },
+  statusStripLeft: { flex: 1, gap: 2 },
+  statusStripSubtext: { color: "#475569", fontSize: 11, fontWeight: "600" },
+  statusStripBadges: { flexDirection: "row", alignItems: "center", gap: 6 },
   statusStripText: { color: "#334155", fontSize: 12, fontWeight: "700" },
   statusStripBadge: { fontSize: 11, fontWeight: "800", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, overflow: "hidden" },
   activeBadge: { color: "#166534", backgroundColor: "#dcfce7" },
   pausedBadge: { color: "#64748b", backgroundColor: "#e2e8f0" },
+  windowOpenBadge: { color: "#0f766e", backgroundColor: "#ccfbf1" },
+  windowClosedBadge: { color: "#7c2d12", backgroundColor: "#ffedd5" },
   sectionWrap: { gap: 8 },
   sectionTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
   emptyCard: {
