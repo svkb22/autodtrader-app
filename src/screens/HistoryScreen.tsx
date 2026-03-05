@@ -13,6 +13,7 @@ import { usd } from "@/utils/format";
 type PrimaryFilter = "trades" | "proposals";
 type TradeFilter = "open" | "closed" | "all";
 type ProposalFilter = "pending" | "expired" | "rejected" | "all";
+type SortKey = "date_desc" | "date_asc" | "pnl_desc" | "pnl_asc";
 
 type Nav = {
   navigate: (screen: "ProposalDetail", params: { proposalId: string }) => void;
@@ -40,6 +41,18 @@ const ranges: Array<{ key: ActivityRange; label: string }> = [
   { key: "1w", label: "1W" },
   { key: "1m", label: "1M" },
   { key: "all", label: "All" },
+];
+
+const tradeSorts: Array<{ key: SortKey; label: string }> = [
+  { key: "date_desc", label: "Newest" },
+  { key: "date_asc", label: "Oldest" },
+  { key: "pnl_desc", label: "P/L High-Low" },
+  { key: "pnl_asc", label: "P/L Low-High" },
+];
+
+const proposalSorts: Array<{ key: SortKey; label: string }> = [
+  { key: "date_desc", label: "Newest" },
+  { key: "date_asc", label: "Oldest" },
 ];
 
 function chipToneColor(tone: UnifiedActivityItem["statusTone"]): { fg: string; bg: string } {
@@ -80,6 +93,7 @@ export default function HistoryScreen(): React.JSX.Element {
   const [primary, setPrimary] = useState<PrimaryFilter>("trades");
   const [tradeFilter, setTradeFilter] = useState<TradeFilter>("open");
   const [proposalFilter, setProposalFilter] = useState<ProposalFilter>("all");
+  const [sortBy, setSortBy] = useState<SortKey>("date_desc");
   const [range, setRange] = useState<ActivityRange>("1w");
   const [activeMode, setActiveMode] = useState<"paper" | "live">("paper");
   const [items, setItems] = useState<UnifiedActivityItem[]>([]);
@@ -141,14 +155,26 @@ export default function HistoryScreen(): React.JSX.Element {
       if (proposalFilter === "rejected") next = next.filter((item) => getRawStatus(item) === "rejected");
     }
 
+    if (sortBy === "date_desc") {
+      next = [...next].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    } else if (sortBy === "date_asc") {
+      next = [...next].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+    } else if (primary === "trades") {
+      const score = (item: UnifiedActivityItem) => (typeof item.pnlValue === "number" ? item.pnlValue : 0);
+      next = [...next].sort((a, b) => (sortBy === "pnl_desc" ? score(b) - score(a) : score(a) - score(b)));
+    }
+
     return next;
-  }, [items, primary, proposalFilter, tradeFilter]);
+  }, [items, primary, proposalFilter, sortBy, tradeFilter]);
 
   const showingLabel = useMemo(() => {
     const p = primary === "trades" ? "Trades" : "Proposals";
     const s = primary === "trades" ? tradeFilter : proposalFilter;
-    return `Showing: ${p} • ${s.charAt(0).toUpperCase()}${s.slice(1)} • ${range.toUpperCase()}`;
-  }, [primary, proposalFilter, range, tradeFilter]);
+    const sortLabel = (
+      (primary === "trades" ? tradeSorts : proposalSorts).find((item) => item.key === sortBy)?.label ?? "Newest"
+    );
+    return `Showing: ${p} • ${s.charAt(0).toUpperCase()}${s.slice(1)} • ${range.toUpperCase()} • Sort ${sortLabel}`;
+  }, [primary, proposalFilter, range, sortBy, tradeFilter]);
 
   const historyMetrics = useMemo(() => {
     const closedTrades = items.filter((item) => item.kind === "TRADE" && item.statusLabel === "Closed Position");
@@ -214,6 +240,14 @@ export default function HistoryScreen(): React.JSX.Element {
             {ranges.map((filter) => (
               <Pressable key={filter.key} style={[styles.pill, range === filter.key && styles.pillActive]} onPress={() => setRange(filter.key)}>
                 <Text style={[styles.pillText, range === filter.key && styles.pillTextActive]}>{filter.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.pillRow}>
+            {(primary === "trades" ? tradeSorts : proposalSorts).map((sort) => (
+              <Pressable key={sort.key} style={[styles.pill, sortBy === sort.key && styles.pillActive]} onPress={() => setSortBy(sort.key)}>
+                <Text style={[styles.pillText, sortBy === sort.key && styles.pillTextActive]}>{sort.label}</Text>
               </Pressable>
             ))}
           </View>
