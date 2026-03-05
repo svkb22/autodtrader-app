@@ -6,6 +6,7 @@ type ActivityParams = {
   range?: ActivityRange;
   limit?: number;
   cursor?: string | null;
+  includeOverview?: boolean;
 };
 
 function mapReason(item: ProposalHistoryItem): string | undefined {
@@ -174,12 +175,14 @@ export async function getActivity(params: ActivityParams = {}): Promise<Activity
   const range = params.range ?? "1w";
   const limit = params.limit ?? 20;
   const cursor = params.cursor ?? null;
+  const includeOverview = params.includeOverview ?? false;
 
   try {
     const query = new URLSearchParams();
     if (status && status !== "all") query.set("status", status);
     query.set("range", range);
     query.set("limit", String(limit));
+    query.set("include_overview", includeOverview ? "1" : "0");
     if (cursor) query.set("cursor", cursor);
 
     const res = await api.get<ActivityResponse>(`/activity?${query.toString()}`);

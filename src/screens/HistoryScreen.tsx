@@ -90,7 +90,7 @@ export default function HistoryScreen(): React.JSX.Element {
     setRefreshing(true);
     setError(null);
     try {
-      const [activity, mode] = await Promise.all([getActivity({ status: "all", range, limit: 200 }), getActiveBrokerMode()]);
+      const [activity, mode] = await Promise.all([getActivity({ status: "all", range, limit: 120, includeOverview: false }), getActiveBrokerMode()]);
       const mapped = activity.items.map((item: ActivityItem) => toUnifiedFromActivity(item));
       mapped.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
       setItems(mapped);
