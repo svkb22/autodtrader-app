@@ -31,6 +31,9 @@ const EMPTY_CONNECTION: ConnectionNode = {
   accountId: null,
   lastError: null,
 };
+const BROKER_STATUS_CACHE_TTL_MS = 3000;
+let brokerStatusCache: { value: BrokerStatusResponse; ts: number } | null = null;
+let brokerStatusInFlight: Promise<BrokerStatusResponse> | null = null;
 
 function normalizeConnection(input: unknown): ConnectionNode {
   const value = (input ?? {}) as Partial<ConnectionNode> & {
@@ -52,31 +55,51 @@ function normalizeConnection(input: unknown): ConnectionNode {
 }
 
 export async function getBrokerStatus(): Promise<BrokerStatusResponse> {
-  const res = await api.get<unknown>("/broker/status");
-  const payload = (res.data ?? {}) as {
-    alpaca?: { paper?: Partial<ConnectionNode>; live?: Partial<ConnectionNode> };
-    connected?: boolean;
-    mode?: BrokerMode | null;
-  };
-
-  if (payload.alpaca) {
-    return {
-      alpaca: {
-        paper: normalizeConnection(payload.alpaca.paper),
-        live: normalizeConnection(payload.alpaca.live),
-      },
-    };
+  const now = Date.now();
+  if (brokerStatusCache && now - brokerStatusCache.ts < BROKER_STATUS_CACHE_TTL_MS) {
+    return brokerStatusCache.value;
+  }
+  if (brokerStatusInFlight) {
+    return brokerStatusInFlight;
   }
 
-  // Backward-compatible fallback for legacy shape: { connected, mode }
-  const mode = payload.mode === "live" ? "live" : "paper";
-  const connected = Boolean(payload.connected);
-  return {
-    alpaca: {
-      paper: mode === "paper" ? { ...EMPTY_CONNECTION, connected } : EMPTY_CONNECTION,
-      live: mode === "live" ? { ...EMPTY_CONNECTION, connected } : EMPTY_CONNECTION,
-    },
-  };
+  brokerStatusInFlight = api
+    .get<unknown>("/broker/status")
+    .then((res) => {
+      const payload = (res.data ?? {}) as {
+        alpaca?: { paper?: Partial<ConnectionNode>; live?: Partial<ConnectionNode> };
+        connected?: boolean;
+        mode?: BrokerMode | null;
+      };
+
+      let normalized: BrokerStatusResponse;
+      if (payload.alpaca) {
+        normalized = {
+          alpaca: {
+            paper: normalizeConnection(payload.alpaca.paper),
+            live: normalizeConnection(payload.alpaca.live),
+          },
+        };
+      } else {
+        // Backward-compatible fallback for legacy shape: { connected, mode }
+        const mode = payload.mode === "live" ? "live" : "paper";
+        const connected = Boolean(payload.connected);
+        normalized = {
+          alpaca: {
+            paper: mode === "paper" ? { ...EMPTY_CONNECTION, connected } : EMPTY_CONNECTION,
+            live: mode === "live" ? { ...EMPTY_CONNECTION, connected } : EMPTY_CONNECTION,
+          },
+        };
+      }
+
+      brokerStatusCache = { value: normalized, ts: Date.now() };
+      return normalized;
+    })
+    .finally(() => {
+      brokerStatusInFlight = null;
+    });
+
+  return brokerStatusInFlight;
 }
 
 export async function startAlpacaOAuth(mode: BrokerMode, redirectUri: string): Promise<{ authorizeUrl: string; state: string }> {
