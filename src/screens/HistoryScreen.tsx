@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import { getActivity } from "@/api/activity";
@@ -100,6 +100,7 @@ export default function HistoryScreen(): React.JSX.Element {
   const [loadingData, setLoadingData] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<"state" | "range" | "sort" | null>(null);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -183,116 +184,169 @@ export default function HistoryScreen(): React.JSX.Element {
   }, [items]);
 
   const emptyLabel = primary === "trades" ? "No trades match this filter." : "No proposals match this filter.";
+  const selectedStateLabel = (primary === "trades" ? tradeFilters : proposalFilters).find((item) => {
+    if (primary === "trades") return item.key === tradeFilter;
+    return item.key === proposalFilter;
+  })?.label;
+  const selectedSortLabel = (primary === "trades" ? tradeSorts : proposalSorts).find((item) => item.key === sortBy)?.label;
+  const selectedRangeLabel = ranges.find((item) => item.key === range)?.label;
+  const stateOptions = primary === "trades" ? tradeFilters : proposalFilters;
+  const sortOptions = primary === "trades" ? tradeSorts : proposalSorts;
+  const modalTitle = openDropdown === "state" ? "State" : openDropdown === "range" ? "Range" : openDropdown === "sort" ? "Sort" : "";
 
   return (
-    <FlatList
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      data={filtered}
-      keyExtractor={(item) => `${item.kind}-${item.id}`}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
-      ListHeaderComponent={
-        <View style={styles.headerWrap}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>History</Text>
-            <Text style={styles.modeChip}>{`Alpaca • ${activeMode === "live" ? "Live" : "Paper"}`}</Text>
-          </View>
-
-          <View style={styles.metricsCard}>
-            <Text style={[styles.metricValue, { color: historyMetrics.realized >= 0 ? "#166534" : "#b91c1c" }]}>Realized P/L ({range.toUpperCase()}): {historyMetrics.realized >= 0 ? "+" : ""}{usd(historyMetrics.realized)}</Text>
-            <Text style={styles.metricSub}>Closed trades: {historyMetrics.closedCount}</Text>
-            {loadingData ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color="#64748b" />
-                <Text style={styles.loadingText}>Updating range...</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.segmentedRow}>
-            {primaryFilters.map((filter) => (
-              <Pressable key={filter.key} style={[styles.segmentedPill, primary === filter.key && styles.segmentedPillActive]} onPress={() => setPrimary(filter.key)}>
-                <Text style={[styles.segmentedText, primary === filter.key && styles.segmentedTextActive]}>{filter.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.controlRow}>
-            <Text style={styles.controlLabel}>State</Text>
-            {(primary === "trades" ? tradeFilters : proposalFilters).map((filter) => {
-              const key = filter.key as string;
-              const selected = primary === "trades" ? tradeFilter === key : proposalFilter === key;
-              return (
-                <Pressable
-                  key={filter.key}
-                  style={[styles.pill, selected && styles.pillActive]}
-                  onPress={() => {
-                    if (primary === "trades") setTradeFilter(key as TradeFilter);
-                    else setProposalFilter(key as ProposalFilter);
-                  }}
-                >
-                  <Text style={[styles.pillText, selected && styles.pillTextActive]}>{filter.label}</Text>
-                </Pressable>
-              );
-            })}
-
-            <View style={styles.controlDivider} />
-            <Text style={styles.controlLabel}>Range</Text>
-            {ranges.map((filter) => (
-              <Pressable key={filter.key} style={[styles.pill, range === filter.key && styles.pillActive]} onPress={() => setRange(filter.key)}>
-                <Text style={[styles.pillText, range === filter.key && styles.pillTextActive]}>{filter.label}</Text>
-              </Pressable>
-            ))}
-
-            <View style={styles.controlDivider} />
-            <Text style={styles.controlLabel}>Sort</Text>
-            {(primary === "trades" ? tradeSorts : proposalSorts).map((sort) => (
-              <Pressable key={sort.key} style={[styles.pill, sortBy === sort.key && styles.pillActive]} onPress={() => setSortBy(sort.key)}>
-                <Text style={[styles.pillText, sortBy === sort.key && styles.pillTextActive]}>{sort.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          <Text style={styles.showing}>{showingLabel}</Text>
-          {error ? <ErrorState message={error} onRetry={load} /> : null}
-        </View>
-      }
-      ListEmptyComponent={
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyText}>{emptyLabel}</Text>
-        </View>
-      }
-      renderItem={({ item }) => {
-        const tone = chipToneColor(item.statusTone);
-        const pnlColor = (item.pnlValue ?? 0) >= 0 ? "#166534" : "#b91c1c";
-        const pnlText = typeof item.pnlValue === "number" ? `${item.pnlValue >= 0 ? "+" : ""}${usd(item.pnlValue)}` : null;
-        const riskText = typeof item.riskUsedUsd === "number" ? usd(item.riskUsedUsd) : "-";
-
-        return (
-          <Pressable
-            style={styles.card}
-            onPress={() => {
-              if (item.kind === "PROPOSAL") {
-                navigation.navigate("ProposalDetail", { proposalId: item.id });
-              }
-            }}
-          >
-            <View style={styles.row1}>
-              <Text style={styles.cardTitle}>{item.symbol} • {item.side === "long" ? "Long" : "Short"}</Text>
-              <Text style={[styles.chip, { color: tone.fg, backgroundColor: tone.bg }]}>{item.statusLabel}</Text>
+    <>
+      <FlatList
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        data={filtered}
+        keyExtractor={(item) => `${item.kind}-${item.id}`}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
+        ListHeaderComponent={
+          <View style={styles.headerWrap}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>History</Text>
+              <Text style={styles.modeChip}>{`Alpaca • ${activeMode === "live" ? "Live" : "Paper"}`}</Text>
             </View>
 
-            <Text style={styles.row2}>
-              {item.summary}
-              {pnlText ? <Text style={{ color: pnlColor }}>{` • ${pnlText}`}</Text> : null}
-            </Text>
+            <View style={styles.metricsCard}>
+              <Text style={[styles.metricValue, { color: historyMetrics.realized >= 0 ? "#166534" : "#b91c1c" }]}>Realized P/L ({range.toUpperCase()}): {historyMetrics.realized >= 0 ? "+" : ""}{usd(historyMetrics.realized)}</Text>
+              <Text style={styles.metricSub}>Closed trades: {historyMetrics.closedCount}</Text>
+              {loadingData ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color="#64748b" />
+                  <Text style={styles.loadingText}>Updating range...</Text>
+                </View>
+              ) : null}
+            </View>
 
-            <Text style={styles.row3}>{`${formatDateCompact(item.createdAt)} • Risk ${riskText}`}</Text>
-            {item.entryPrice ? <Text style={styles.meta}>Entry {usd(item.entryPrice)}{item.exitPrice ? ` → Exit ${usd(item.exitPrice)}` : ""}</Text> : null}
+            <View style={styles.segmentedRow}>
+              {primaryFilters.map((filter) => (
+                <Pressable key={filter.key} style={[styles.segmentedPill, primary === filter.key && styles.segmentedPillActive]} onPress={() => setPrimary(filter.key)}>
+                  <Text style={[styles.segmentedText, primary === filter.key && styles.segmentedTextActive]}>{filter.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.dropdownRow}>
+              <Pressable style={styles.dropdownField} onPress={() => setOpenDropdown("state")}>
+                <Text style={styles.dropdownLabel}>State</Text>
+                <Text style={styles.dropdownValue}>{selectedStateLabel ?? "All"}</Text>
+              </Pressable>
+              <Pressable style={styles.dropdownField} onPress={() => setOpenDropdown("range")}>
+                <Text style={styles.dropdownLabel}>Range</Text>
+                <Text style={styles.dropdownValue}>{selectedRangeLabel ?? "1W"}</Text>
+              </Pressable>
+              <Pressable style={styles.dropdownField} onPress={() => setOpenDropdown("sort")}>
+                <Text style={styles.dropdownLabel}>Sort</Text>
+                <Text style={styles.dropdownValue}>{selectedSortLabel ?? "Newest"}</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.showing}>{showingLabel}</Text>
+            {error ? <ErrorState message={error} onRetry={load} /> : null}
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>{emptyLabel}</Text>
+          </View>
+        }
+        renderItem={({ item }) => {
+          const tone = chipToneColor(item.statusTone);
+          const pnlColor = (item.pnlValue ?? 0) >= 0 ? "#166534" : "#b91c1c";
+          const pnlText = typeof item.pnlValue === "number" ? `${item.pnlValue >= 0 ? "+" : ""}${usd(item.pnlValue)}` : null;
+          const riskText = typeof item.riskUsedUsd === "number" ? usd(item.riskUsedUsd) : "-";
+
+          return (
+            <Pressable
+              style={styles.card}
+              onPress={() => {
+                if (item.kind === "PROPOSAL") {
+                  navigation.navigate("ProposalDetail", { proposalId: item.id });
+                }
+              }}
+            >
+              <View style={styles.row1}>
+                <Text style={styles.cardTitle}>{item.symbol} • {item.side === "long" ? "Long" : "Short"}</Text>
+                <Text style={[styles.chip, { color: tone.fg, backgroundColor: tone.bg }]}>{item.statusLabel}</Text>
+              </View>
+
+              <Text style={styles.row2}>
+                {item.summary}
+                {pnlText ? <Text style={{ color: pnlColor }}>{` • ${pnlText}`}</Text> : null}
+              </Text>
+
+              <Text style={styles.row3}>{`${formatDateCompact(item.createdAt)} • Risk ${riskText}`}</Text>
+              {item.entryPrice ? <Text style={styles.meta}>Entry {usd(item.entryPrice)}{item.exitPrice ? ` → Exit ${usd(item.exitPrice)}` : ""}</Text> : null}
+            </Pressable>
+          );
+        }}
+      />
+
+      <Modal transparent visible={openDropdown !== null} animationType="fade" onRequestClose={() => setOpenDropdown(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setOpenDropdown(null)}>
+          <Pressable style={styles.modalSheet} onPress={() => undefined}>
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
+            {openDropdown === "state"
+              ? stateOptions.map((option) => {
+                  const selected = primary === "trades" ? tradeFilter === option.key : proposalFilter === option.key;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[styles.modalOption, selected && styles.modalOptionActive]}
+                      onPress={() => {
+                        if (primary === "trades") setTradeFilter(option.key as TradeFilter);
+                        else setProposalFilter(option.key as ProposalFilter);
+                        setOpenDropdown(null);
+                      }}
+                    >
+                      <Text style={[styles.modalOptionText, selected && styles.modalOptionTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })
+              : null}
+            {openDropdown === "range"
+              ? ranges.map((option) => {
+                  const selected = range === option.key;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[styles.modalOption, selected && styles.modalOptionActive]}
+                      onPress={() => {
+                        setRange(option.key);
+                        setOpenDropdown(null);
+                      }}
+                    >
+                      <Text style={[styles.modalOptionText, selected && styles.modalOptionTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })
+              : null}
+            {openDropdown === "sort"
+              ? sortOptions.map((option) => {
+                  const selected = sortBy === option.key;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[styles.modalOption, selected && styles.modalOptionActive]}
+                      onPress={() => {
+                        setSortBy(option.key);
+                        setOpenDropdown(null);
+                      }}
+                    >
+                      <Text style={[styles.modalOptionText, selected && styles.modalOptionTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })
+              : null}
+            <Pressable style={styles.modalCancel} onPress={() => setOpenDropdown(null)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </Pressable>
           </Pressable>
-        );
-      }}
-    />
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -337,20 +391,19 @@ const styles = StyleSheet.create({
   },
   segmentedText: { color: "#334155", fontWeight: "800", fontSize: 13 },
   segmentedTextActive: { color: "#ffffff" },
-  controlRow: { flexDirection: "row", gap: 8, alignItems: "center", paddingRight: 12 },
-  controlLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
-  controlDivider: { width: 1, height: 16, backgroundColor: "#cbd5e1", marginHorizontal: 2 },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: "#e2e8f0",
+  dropdownRow: { flexDirection: "row", gap: 8 },
+  dropdownField: {
+    flex: 1,
+    backgroundColor: "white",
+    borderColor: "#cbd5e1",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 1,
   },
-  pillActive: {
-    backgroundColor: "#0f172a",
-  },
-  pillText: { color: "#334155", fontWeight: "700", fontSize: 12 },
-  pillTextActive: { color: "#ffffff" },
+  dropdownLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  dropdownValue: { color: "#0f172a", fontSize: 13, fontWeight: "700" },
   showing: { color: "#475569", fontSize: 12, fontWeight: "600" },
   emptyWrap: {
     backgroundColor: "white",
@@ -381,4 +434,38 @@ const styles = StyleSheet.create({
   row2: { color: "#334155", fontWeight: "700", fontSize: 16 },
   row3: { color: "#64748b", fontSize: 13, fontWeight: "600" },
   meta: { color: "#64748b", fontSize: 12 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(2, 6, 23, 0.35)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 14,
+    gap: 8,
+  },
+  modalTitle: { color: "#0f172a", fontSize: 16, fontWeight: "800", marginBottom: 2 },
+  modalOption: {
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  modalOptionActive: {
+    borderColor: "#0f172a",
+    backgroundColor: "#e2e8f0",
+  },
+  modalOptionText: { color: "#334155", fontSize: 14, fontWeight: "700" },
+  modalOptionTextActive: { color: "#0f172a" },
+  modalCancel: {
+    marginTop: 2,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#f1f5f9",
+  },
+  modalCancelText: { color: "#0f172a", fontWeight: "700", fontSize: 14 },
 });
