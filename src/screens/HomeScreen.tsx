@@ -99,6 +99,33 @@ function buildSparkSeries(allocatedCapital: number, executions: ExecutionRecentI
   return values;
 }
 
+function computeCurrentCapital(allocatedCapital: number, executions: ExecutionRecentItem[]): number {
+  const baseline = Number.isFinite(allocatedCapital) ? allocatedCapital : 0;
+  const realizedEvents = executions
+    .filter((item) => typeof item.realized_pnl === "number")
+    .sort((a, b) => {
+      const aTs = Date.parse(a.exit_filled_at ?? a.filled_at ?? a.submitted_at);
+      const bTs = Date.parse(b.exit_filled_at ?? b.filled_at ?? b.submitted_at);
+      return aTs - bTs;
+    });
+  let running = baseline;
+  for (const event of realizedEvents) {
+    running += Number(event.realized_pnl ?? 0);
+  }
+  return running;
+}
+
+function computePeriodDelta(executions: ExecutionRecentItem[], range: SparkRange): number {
+  const cutoff = rangeCutoff(range);
+  return executions
+    .filter((item) => typeof item.realized_pnl === "number")
+    .filter((item) => {
+      const ts = Date.parse(item.exit_filled_at ?? item.filled_at ?? item.submitted_at);
+      return !Number.isNaN(ts) && ts >= cutoff;
+    })
+    .reduce((sum, item) => sum + Number(item.realized_pnl ?? 0), 0);
+}
+
 function projectSpark(values: number[], width: number, height: number): SparkPoint[] {
   if (values.length === 0 || width <= 0 || height <= 0) return [];
   const min = Math.min(...values);
@@ -215,12 +242,20 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   }, [proposal]);
 
   const sparkValues = useMemo(() => buildSparkSeries(allocatedCapital, executionRecent, sparkRange), [allocatedCapital, executionRecent, sparkRange]);
-  const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 58), [sparkValues, sparkWidth]);
-
-  const trackedCapital = useMemo(() => {
-    const last = sparkValues[sparkValues.length - 1];
-    return Number.isFinite(last) ? Number(last) : allocatedCapital;
+  const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 180), [sparkValues, sparkWidth]);
+  const currentCapital = useMemo(() => computeCurrentCapital(allocatedCapital, executionRecent), [allocatedCapital, executionRecent]);
+  const periodDelta = useMemo(() => computePeriodDelta(executionRecent, sparkRange), [executionRecent, sparkRange]);
+  const periodStartCapital = currentCapital - periodDelta;
+  const periodDeltaPct = Math.abs(periodStartCapital) > 1e-6 ? (periodDelta / periodStartCapital) * 100 : 0;
+  const sparkBaselineY = useMemo(() => {
+    if (sparkValues.length === 0) return null;
+    const min = Math.min(...sparkValues);
+    const max = Math.max(...sparkValues);
+    const range = Math.max(max - min, 1);
+    const y = ((max - allocatedCapital) / range) * 179;
+    return Math.max(0, Math.min(179, y));
   }, [allocatedCapital, sparkValues]);
+  const sparkLastPoint = sparkPoints.length > 0 ? sparkPoints[sparkPoints.length - 1] : null;
 
   const filteredPositions = useMemo(() => {
     if (positionFilter === "all") return todayPositions;
@@ -369,7 +404,10 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
           ) : (
             <>
               <View style={styles.snapshotHead}>
-                <Text style={styles.snapshotValue}>{usd(trackedCapital)}</Text>
+                <Text style={styles.snapshotValue}>{usd(currentCapital)}</Text>
+                <Text style={[styles.snapshotDelta, periodDelta >= 0 ? styles.posPnl : styles.negPnl]}>
+                  {periodDelta >= 0 ? "▲" : "▼"} {usd(Math.abs(periodDelta))} ({Math.abs(periodDeltaPct).toFixed(2)}%) {sparkRange.toUpperCase()}
+                </Text>
                 <Text style={styles.snapshotMeta}>{`Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`}</Text>
               </View>
 
@@ -382,6 +420,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
               </View>
 
               <View style={styles.sparkWrap} onLayout={onSparkLayout}>
+                {sparkBaselineY != null ? <View style={[styles.sparkBaseline, { top: sparkBaselineY }]} /> : null}
                 {sparkPoints.map((point, index) => {
                   if (index === 0) return null;
                   const prev = sparkPoints[index - 1];
@@ -404,6 +443,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
                     />
                   );
                 })}
+                {sparkLastPoint ? <View style={[styles.sparkEndDot, { left: sparkLastPoint.x - 4, top: sparkLastPoint.y - 4 }]} /> : null}
               </View>
             </>
           )}
@@ -556,9 +596,12 @@ const styles = StyleSheet.create({
   snapshotCard: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#e2e8f0", padding: 12, gap: 10 },
   snapshotHead: { gap: 2 },
   snapshotValue: { color: "#0f172a", fontSize: 24, fontWeight: "800" },
+  snapshotDelta: { fontSize: 14, fontWeight: "800", marginTop: 2 },
   snapshotMeta: { color: "#475569", fontSize: 12, fontWeight: "600" },
-  sparkWrap: { height: 58, borderRadius: 8, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", position: "relative", overflow: "hidden" },
-  sparkSegment: { position: "absolute", height: 2, backgroundColor: "#0f766e", borderRadius: 2 },
+  sparkWrap: { height: 180, borderRadius: 8, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", position: "relative", overflow: "hidden" },
+  sparkSegment: { position: "absolute", height: 2, backgroundColor: "#22c55e", borderRadius: 2 },
+  sparkBaseline: { position: "absolute", left: 0, right: 0, borderTopWidth: 1, borderTopColor: "#94a3b8", borderStyle: "dashed" },
+  sparkEndDot: { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e" },
   pillRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: "#e2e8f0" },
   pillActive: { backgroundColor: "#0f172a" },
