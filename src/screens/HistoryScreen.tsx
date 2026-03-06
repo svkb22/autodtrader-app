@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import { getActivity } from "@/api/activity";
@@ -209,15 +209,16 @@ export default function HistoryScreen(): React.JSX.Element {
             ) : null}
           </View>
 
-          <View style={styles.pillRow}>
+          <View style={styles.segmentedRow}>
             {primaryFilters.map((filter) => (
-              <Pressable key={filter.key} style={[styles.pill, primary === filter.key && styles.pillActive]} onPress={() => setPrimary(filter.key)}>
-                <Text style={[styles.pillText, primary === filter.key && styles.pillTextActive]}>{filter.label}</Text>
+              <Pressable key={filter.key} style={[styles.segmentedPill, primary === filter.key && styles.segmentedPillActive]} onPress={() => setPrimary(filter.key)}>
+                <Text style={[styles.segmentedText, primary === filter.key && styles.segmentedTextActive]}>{filter.label}</Text>
               </Pressable>
             ))}
           </View>
 
-          <View style={styles.pillRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.controlRow}>
+            <Text style={styles.controlLabel}>State</Text>
             {(primary === "trades" ? tradeFilters : proposalFilters).map((filter) => {
               const key = filter.key as string;
               const selected = primary === "trades" ? tradeFilter === key : proposalFilter === key;
@@ -234,23 +235,23 @@ export default function HistoryScreen(): React.JSX.Element {
                 </Pressable>
               );
             })}
-          </View>
 
-          <View style={styles.pillRow}>
+            <View style={styles.controlDivider} />
+            <Text style={styles.controlLabel}>Range</Text>
             {ranges.map((filter) => (
               <Pressable key={filter.key} style={[styles.pill, range === filter.key && styles.pillActive]} onPress={() => setRange(filter.key)}>
                 <Text style={[styles.pillText, range === filter.key && styles.pillTextActive]}>{filter.label}</Text>
               </Pressable>
             ))}
-          </View>
 
-          <View style={styles.pillRow}>
+            <View style={styles.controlDivider} />
+            <Text style={styles.controlLabel}>Sort</Text>
             {(primary === "trades" ? tradeSorts : proposalSorts).map((sort) => (
               <Pressable key={sort.key} style={[styles.pill, sortBy === sort.key && styles.pillActive]} onPress={() => setSortBy(sort.key)}>
                 <Text style={[styles.pillText, sortBy === sort.key && styles.pillTextActive]}>{sort.label}</Text>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
 
           <Text style={styles.showing}>{showingLabel}</Text>
           {error ? <ErrorState message={error} onRetry={load} /> : null}
@@ -322,7 +323,23 @@ const styles = StyleSheet.create({
   metricSub: { color: "#334155", fontSize: 13, fontWeight: "600" },
   loadingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
   loadingText: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  pillRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  segmentedRow: { flexDirection: "row", gap: 8 },
+  segmentedPill: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 10,
+    backgroundColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentedPillActive: {
+    backgroundColor: "#0f172a",
+  },
+  segmentedText: { color: "#334155", fontWeight: "800", fontSize: 13 },
+  segmentedTextActive: { color: "#ffffff" },
+  controlRow: { flexDirection: "row", gap: 8, alignItems: "center", paddingRight: 12 },
+  controlLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  controlDivider: { width: 1, height: 16, backgroundColor: "#cbd5e1", marginHorizontal: 2 },
   pill: {
     paddingHorizontal: 12,
     paddingVertical: 7,
