@@ -5,3 +5,4 @@ function parseBool(value: string | undefined, fallback = false): boolean {
 }
 
 export const ENABLE_LIVE_BROKER = parseBool(process.env.EXPO_PUBLIC_ENABLE_LIVE_BROKER, false);
+export const ENABLE_MANUAL_ALPACA_CONNECT = parseBool(process.env.EXPO_PUBLIC_ENABLE_MANUAL_ALPACA_CONNECT, false);

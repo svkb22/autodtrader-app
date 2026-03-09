@@ -1,6 +1,11 @@
 import api from "@/api/client";
 
 type BrokerMode = "paper" | "live";
+export type ManualConnectPayload = {
+  env: BrokerMode;
+  api_key: string;
+  api_secret: string;
+};
 
 type ConnectionNode = {
   connected: boolean;
@@ -54,12 +59,15 @@ function normalizeConnection(input: unknown): ConnectionNode {
   };
 }
 
-export async function getBrokerStatus(): Promise<BrokerStatusResponse> {
+export async function getBrokerStatus(force = false): Promise<BrokerStatusResponse> {
   const now = Date.now();
-  if (brokerStatusCache && now - brokerStatusCache.ts < BROKER_STATUS_CACHE_TTL_MS) {
+  if (force) {
+    brokerStatusCache = null;
+  }
+  if (!force && brokerStatusCache && now - brokerStatusCache.ts < BROKER_STATUS_CACHE_TTL_MS) {
     return brokerStatusCache.value;
   }
-  if (brokerStatusInFlight) {
+  if (!force && brokerStatusInFlight) {
     return brokerStatusInFlight;
   }
 
@@ -100,6 +108,11 @@ export async function getBrokerStatus(): Promise<BrokerStatusResponse> {
     });
 
   return brokerStatusInFlight;
+}
+
+export async function connectAlpacaManual(payload: ManualConnectPayload): Promise<{ connected: boolean; accountId?: string | null }> {
+  const res = await api.post<{ connected: boolean; accountId?: string | null }>("/broker/alpaca/connect", payload);
+  return res.data;
 }
 
 export async function startAlpacaOAuth(mode: BrokerMode, redirectUri: string): Promise<{ authorizeUrl: string; state: string }> {

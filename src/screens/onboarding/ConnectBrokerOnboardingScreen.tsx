@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 
 import { track } from "@/analytics/track";
-import { BrokerStatusResponse, finishAlpacaOAuth, getBrokerStatus, startAlpacaOAuth } from "@/api/broker";
+import { BrokerStatusResponse, connectAlpacaManual, finishAlpacaOAuth, getBrokerStatus, startAlpacaOAuth } from "@/api/broker";
+import { toApiError } from "@/api/client";
 import OAuthResultBanner from "@/components/OAuthResultBanner";
-import { ENABLE_LIVE_BROKER } from "@/config/env";
+import { ENABLE_LIVE_BROKER, ENABLE_MANUAL_ALPACA_CONNECT } from "@/config/env";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 import OnboardingLayout from "@/screens/onboarding/OnboardingLayout";
 import { mapOAuthResultToUIState, OAuthAction, OAuthBannerState, parseOAuthErrorFromUrl } from "@/utils/mapOAuthError";
@@ -39,6 +40,13 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
   const [status, setStatus] = useState<BrokerStatusResponse>(initialStatus);
   const [loading, setLoading] = useState<boolean>(false);
   const [oauthBanner, setOAuthBanner] = useState<OAuthBannerState | null>(null);
+  const [manualOpen, setManualOpen] = useState<boolean>(false);
+  const [manualKey, setManualKey] = useState<string>("");
+  const [manualSecret, setManualSecret] = useState<string>("");
+  const [manualMode, setManualMode] = useState<BrokerMode>("paper");
+  const [manualLoading, setManualLoading] = useState<boolean>(false);
+  const [manualError, setManualError] = useState<string>("");
+  const [manualSuccess, setManualSuccess] = useState<string>("");
 
   useEffect(() => {
     track("onboarding_step_viewed", { step: "connect_broker" });
@@ -138,7 +146,7 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
       }
 
       await finishAlpacaOAuth(code, state, selectedMode);
-      const refreshed = await getBrokerStatus();
+      const refreshed = await getBrokerStatus(true);
       setStatus(refreshed);
       setBrokerConnected(selectedMode === "live" ? refreshed.alpaca.live.connected : refreshed.alpaca.paper.connected);
       setOAuthBanner(null);
@@ -165,6 +173,45 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
       return;
     }
     navigation.goBack();
+  };
+
+  const onManualConnect = async () => {
+    if (!manualKey.trim() || !manualSecret.trim()) {
+      setManualError("Enter both API key and API secret.");
+      return;
+    }
+
+    setManualLoading(true);
+    setManualError("");
+    setManualSuccess("");
+
+    try {
+      await connectAlpacaManual({
+        env: manualMode,
+        api_key: manualKey.trim(),
+        api_secret: manualSecret.trim(),
+      });
+      const refreshed = await getBrokerStatus(true);
+      setStatus(refreshed);
+      const connected = manualMode === "live" ? refreshed.alpaca.live.connected : refreshed.alpaca.paper.connected;
+      setBrokerConnected(connected);
+      if (!connected) {
+        setManualError("Connect call succeeded, but broker status is still disconnected. Please retry.");
+        return;
+      }
+
+      setMode(manualMode);
+      setManualKey("");
+      setManualSecret("");
+      setManualOpen(false);
+      setManualSuccess("Broker connected.");
+      setOAuthBanner(null);
+    } catch (error) {
+      setBrokerConnected(false);
+      setManualError(toApiError(error) || "Manual connect failed. Please try again.");
+    } finally {
+      setManualLoading(false);
+    }
   };
 
   return (
@@ -210,6 +257,103 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
         <Pressable accessibilityLabel="Connect Alpaca" style={styles.connectButton} onPress={() => void onConnect()} disabled={loading}>
           <Text style={styles.connectText}>{loading ? "Connecting..." : draft.brokerConnected ? "Connected" : "Continue to Alpaca"}</Text>
         </Pressable>
+
+        {ENABLE_MANUAL_ALPACA_CONNECT ? (
+          <View style={styles.manualBlock}>
+            <Pressable
+              accessibilityLabel="Toggle manual connect"
+              onPress={() => {
+                setManualOpen((prev) => !prev);
+                setManualError("");
+                setManualSuccess("");
+              }}
+            >
+              <Text style={styles.manualToggle}>
+                Having trouble with OAuth? Connect manually (temporary)
+              </Text>
+            </Pressable>
+
+            {manualOpen ? (
+              <View style={styles.manualPanel}>
+                {ENABLE_LIVE_BROKER ? (
+                  <View style={styles.toggleRow}>
+                    <Pressable
+                      accessibilityLabel="Manual mode paper"
+                      style={[styles.modeButton, manualMode === "paper" && styles.modeButtonActive]}
+                      onPress={() => {
+                        setManualMode("paper");
+                        setManualError("");
+                      }}
+                    >
+                      <Text style={[styles.modeText, manualMode === "paper" && styles.modeTextActive]}>Paper</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel="Manual mode live"
+                      style={[styles.modeButton, manualMode === "live" && styles.modeButtonActive]}
+                      onPress={() => {
+                        setManualMode("live");
+                        setManualError("");
+                      }}
+                    >
+                      <Text style={[styles.modeText, manualMode === "live" && styles.modeTextActive]}>Live</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Text style={styles.manualModeNote}>Mode: Paper</Text>
+                )}
+
+                <Text style={styles.label}>Alpaca API Key</Text>
+                <TextInput
+                  value={manualKey}
+                  onChangeText={(next) => {
+                    setManualKey(next);
+                    setManualError("");
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.input}
+                  placeholder="Enter API key"
+                  placeholderTextColor="#94a3b8"
+                />
+
+                <Text style={styles.label}>Alpaca API Secret</Text>
+                <TextInput
+                  value={manualSecret}
+                  onChangeText={(next) => {
+                    setManualSecret(next);
+                    setManualError("");
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  style={styles.input}
+                  placeholder="Enter API secret"
+                  placeholderTextColor="#94a3b8"
+                />
+
+                {manualError ? <Text style={styles.manualError}>{manualError}</Text> : null}
+
+                <View style={styles.manualButtonsRow}>
+                  <Pressable style={[styles.manualButton, styles.manualConnectButton, manualLoading && styles.manualButtonDisabled]} onPress={() => void onManualConnect()} disabled={manualLoading}>
+                    <Text style={styles.manualConnectText}>{manualLoading ? "Connecting..." : "Connect"}</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.manualButton, styles.manualCancelButton]}
+                    onPress={() => {
+                      setManualOpen(false);
+                      setManualError("");
+                    }}
+                    disabled={manualLoading}
+                  >
+                    <Text style={styles.manualCancelText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {manualSuccess ? <Text style={styles.manualSuccess}>{manualSuccess}</Text> : null}
 
         <View style={styles.signupBlock}>
           <Text style={styles.signupTitle}>New to Alpaca?</Text>
@@ -304,4 +448,76 @@ const styles = StyleSheet.create({
   signupTitle: { color: "#0f172a", fontSize: 14, fontWeight: "700" },
   signupBody: { color: "#64748b", fontSize: 12, lineHeight: 17 },
   signupLink: { color: "#0f172a", fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },
+  manualBlock: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#f8fafc",
+    padding: 10,
+    gap: 8,
+  },
+  manualToggle: {
+    color: "#1e293b",
+    fontSize: 13,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  manualPanel: {
+    gap: 8,
+  },
+  manualModeNote: {
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  input: {
+    minHeight: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    paddingHorizontal: 12,
+    backgroundColor: "white",
+    color: "#0f172a",
+  },
+  manualButtonsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  manualButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  manualConnectButton: {
+    backgroundColor: "#0f172a",
+    borderColor: "#0f172a",
+  },
+  manualCancelButton: {
+    backgroundColor: "white",
+    borderColor: "#cbd5e1",
+  },
+  manualConnectText: {
+    color: "white",
+    fontWeight: "700",
+  },
+  manualCancelText: {
+    color: "#334155",
+    fontWeight: "700",
+  },
+  manualButtonDisabled: {
+    opacity: 0.7,
+  },
+  manualError: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  manualSuccess: {
+    color: "#166534",
+    fontSize: 12,
+    fontWeight: "700",
+  },
 });
