@@ -157,6 +157,11 @@ function deviceTimezoneLabel(): string {
   }
 }
 
+function clampIndex(index: number, length: number): number {
+  if (length <= 0) return 0;
+  return Math.max(0, Math.min(length - 1, index));
+}
+
 export default function HomeScreen(_props: Props): React.JSX.Element {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [mode, setMode] = useState<"paper" | "live">("paper");
@@ -171,6 +176,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   const [systemPaused, setSystemPaused] = useState<boolean>(false);
   const [tradingWindow, setTradingWindow] = useState<TradingWindowStatus | null>(null);
   const [sparkWidth, setSparkWidth] = useState<number>(0);
+  const [activeSparkIndex, setActiveSparkIndex] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [loadedOnce, setLoadedOnce] = useState<boolean>(false);
@@ -256,6 +262,13 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     return Math.max(0, Math.min(179, y));
   }, [allocatedCapital, sparkValues]);
   const sparkLastPoint = sparkPoints.length > 0 ? sparkPoints[sparkPoints.length - 1] : null;
+  const selectedSparkIndex = activeSparkIndex == null ? sparkValues.length - 1 : clampIndex(activeSparkIndex, sparkValues.length);
+  const selectedSparkValue = sparkValues.length > 0 ? sparkValues[selectedSparkIndex] : currentCapital;
+  const selectedSparkPoint = sparkPoints.length > 0 ? sparkPoints[clampIndex(selectedSparkIndex, sparkPoints.length)] : null;
+  const selectedSparkDelta = selectedSparkValue - allocatedCapital;
+  const displayedDelta = activeSparkIndex == null ? periodDelta : selectedSparkDelta;
+  const displayedDeltaPct =
+    activeSparkIndex == null ? periodDeltaPct : Math.abs(allocatedCapital) > 1e-6 ? (selectedSparkDelta / allocatedCapital) * 100 : 0;
 
   const filteredPositions = useMemo(() => {
     if (positionFilter === "all") return todayPositions;
@@ -266,6 +279,16 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     const next = Math.max(1, Math.floor(event.nativeEvent.layout.width));
     if (next !== sparkWidth) setSparkWidth(next);
   };
+
+  const updateActiveSparkIndex = useCallback(
+    (locationX: number) => {
+      if (sparkWidth <= 1 || sparkValues.length <= 1) return;
+      const ratio = Math.max(0, Math.min(1, locationX / Math.max(sparkWidth - 1, 1)));
+      const nextIndex = Math.round(ratio * Math.max(sparkValues.length - 1, 1));
+      setActiveSparkIndex(clampIndex(nextIndex, sparkValues.length));
+    },
+    [sparkValues.length, sparkWidth]
+  );
 
   const onApprove = useCallback(async () => {
     if (!proposal) return;
@@ -388,11 +411,15 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
           ) : (
             <>
               <View style={styles.snapshotHead}>
-                <Text style={styles.snapshotValue}>{usd(currentCapital)}</Text>
-                <Text style={[styles.snapshotDelta, periodDelta >= 0 ? styles.posPnl : styles.negPnl]}>
-                  {periodDelta >= 0 ? "▲" : "▼"} {usd(Math.abs(periodDelta))} ({Math.abs(periodDeltaPct).toFixed(2)}%) {sparkRange.toUpperCase()}
+                <Text style={styles.snapshotValue}>{usd(selectedSparkValue)}</Text>
+                <Text style={[styles.snapshotDelta, displayedDelta >= 0 ? styles.posPnl : styles.negPnl]}>
+                  {displayedDelta >= 0 ? "▲" : "▼"} {usd(Math.abs(displayedDelta))} ({Math.abs(displayedDeltaPct).toFixed(2)}%) {activeSparkIndex == null ? sparkRange.toUpperCase() : "vs Allocated"}
                 </Text>
-                <Text style={styles.snapshotMeta}>{`Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`}</Text>
+                <Text style={styles.snapshotMeta}>
+                  {activeSparkIndex == null
+                    ? `Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`
+                    : `Inspecting point ${selectedSparkIndex + 1} of ${sparkValues.length}`}
+                </Text>
               </View>
 
               <View style={styles.pillRow}>
@@ -403,7 +430,17 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
                 ))}
               </View>
 
-              <View style={styles.sparkWrap} onLayout={onSparkLayout}>
+              <View
+                style={styles.sparkWrap}
+                onLayout={onSparkLayout}
+                onStartShouldSetResponder={() => true}
+                onMoveShouldSetResponder={() => true}
+                onResponderGrant={(event) => updateActiveSparkIndex(event.nativeEvent.locationX)}
+                onResponderMove={(event) => updateActiveSparkIndex(event.nativeEvent.locationX)}
+                onResponderRelease={() => setActiveSparkIndex(null)}
+                onResponderTerminate={() => setActiveSparkIndex(null)}
+                onResponderTerminationRequest={() => true}
+              >
                 {sparkBaselineY != null ? <View style={[styles.sparkBaseline, { top: sparkBaselineY }]} /> : null}
                 {sparkPoints.map((point, index) => {
                   if (index === 0) return null;
@@ -427,7 +464,25 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
                     />
                   );
                 })}
-                {sparkLastPoint ? <View style={[styles.sparkEndDot, { left: sparkLastPoint.x - 4, top: sparkLastPoint.y - 4 }]} /> : null}
+                {sparkLastPoint && activeSparkIndex == null ? <View style={[styles.sparkEndDot, { left: sparkLastPoint.x - 4, top: sparkLastPoint.y - 4 }]} /> : null}
+                {selectedSparkPoint && activeSparkIndex != null ? (
+                  <>
+                    <View style={[styles.sparkCrosshair, { left: selectedSparkPoint.x }]} />
+                    <View style={[styles.sparkActiveDot, { left: selectedSparkPoint.x - 6, top: selectedSparkPoint.y - 6 }]} />
+                    <View
+                      style={[
+                        styles.sparkTooltip,
+                        {
+                          left: Math.max(8, Math.min(Math.max(8, sparkWidth - 108), selectedSparkPoint.x - 48)),
+                          top: Math.max(8, selectedSparkPoint.y - 44),
+                        },
+                      ]}
+                    >
+                      <Text style={styles.sparkTooltipText}>{usd(selectedSparkValue)}</Text>
+                    </View>
+                  </>
+                ) : null}
+                <Text style={styles.sparkHint}>{activeSparkIndex == null ? "Drag across chart to inspect values" : "Release to return to current value"}</Text>
               </View>
             </>
           )}
@@ -586,6 +641,19 @@ const styles = StyleSheet.create({
   sparkSegment: { position: "absolute", height: 2, backgroundColor: "#22c55e", borderRadius: 2 },
   sparkBaseline: { position: "absolute", left: 0, right: 0, borderTopWidth: 1, borderTopColor: "#94a3b8", borderStyle: "dashed" },
   sparkEndDot: { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e" },
+  sparkCrosshair: { position: "absolute", top: 0, bottom: 0, width: 1, backgroundColor: "#0f172a22" },
+  sparkActiveDot: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: "#22c55e", borderWidth: 2, borderColor: "#ffffff" },
+  sparkTooltip: {
+    position: "absolute",
+    minWidth: 96,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#0f172a",
+    alignItems: "center",
+  },
+  sparkTooltipText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
+  sparkHint: { position: "absolute", left: 10, bottom: 8, color: "#64748b", fontSize: 11, fontWeight: "600" },
   pillRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: "#e2e8f0" },
   pillActive: { backgroundColor: "#0f172a" },
