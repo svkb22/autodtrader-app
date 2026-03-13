@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { NavigationProp, ParamListBase, useNavigation } from "@react-navigation/native";
 
 import { AutoExecuteStrength, BrokerSettings } from "@/api/types";
 import { getBrokerSettings, toApiError, updateBrokerSettings } from "@/api/client";
@@ -11,6 +12,7 @@ const options: Array<{ key: AutoExecuteStrength; label: string }> = [
 ];
 
 export default function AutoExecuteSettingsScreen(): React.JSX.Element {
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const [settings, setSettings] = useState<BrokerSettings | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -26,7 +28,18 @@ export default function AutoExecuteSettingsScreen(): React.JSX.Element {
       setSaving(true);
       const updated = await updateBrokerSettings(settings);
       setSettings(updated);
-      Alert.alert("Saved", "Auto-execution settings updated.");
+      Alert.alert("Saved", "Auto-execution settings updated.", [
+        {
+          text: "OK",
+          onPress: () => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate("Tabs");
+            }
+          },
+        },
+      ]);
     } catch (error) {
       Alert.alert("Save failed", toApiError(error));
     } finally {
@@ -79,7 +92,7 @@ export default function AutoExecuteSettingsScreen(): React.JSX.Element {
       </View>
 
       <Pressable style={[styles.saveButton, saving && styles.disabled]} disabled={saving} onPress={onSave}>
-        <Text style={styles.saveText}>Save Settings</Text>
+        <Text style={styles.saveText}>{saving ? "Saving..." : "Save Settings"}</Text>
       </Pressable>
     </View>
   );
