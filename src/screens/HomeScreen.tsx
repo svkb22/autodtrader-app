@@ -262,21 +262,6 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     return todayPositions.filter((item) => (positionFilter === "open" ? isOpenPosition(item) : !isOpenPosition(item)));
   }, [positionFilter, todayPositions]);
 
-  const tradingWindowText = useMemo(() => {
-    if (!tradingWindow) return "Trading Window: --";
-    const base = `Trading Window: ${tradingWindow.start_et}-${tradingWindow.end_et} ET`;
-    if (tradingWindow.is_open) return `${base} (Open)`;
-    if (tradingWindow.next_open_et) {
-      const next = new Date(tradingWindow.next_open_et);
-      if (!Number.isNaN(next.getTime())) {
-        const hh = String(next.getHours()).padStart(2, "0");
-        const mm = String(next.getMinutes()).padStart(2, "0");
-        return `${base} (Closed, next ${hh}:${mm} ET)`;
-      }
-    }
-    return `${base} (Closed)`;
-  }, [tradingWindow]);
-
   const onSparkLayout = (event: LayoutChangeEvent) => {
     const next = Math.max(1, Math.floor(event.nativeEvent.layout.width));
     if (next !== sparkWidth) setSparkWidth(next);
@@ -348,7 +333,6 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
         <View style={styles.statusStripLeft}>
           <Text style={styles.statusStripText}>{`Mode: Alpaca • ${mode === "live" ? "Live" : "Paper"}`}</Text>
           <Text style={styles.statusStripSubtext}>{`Device Timezone: ${deviceTimezoneLabel()}`}</Text>
-          <Text style={styles.statusStripSubtext}>{tradingWindowText}</Text>
         </View>
         <View style={styles.statusStripBadges}>
           <Text style={[styles.statusStripBadge, systemPaused ? styles.pausedBadge : styles.activeBadge]}>
