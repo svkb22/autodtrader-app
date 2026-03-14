@@ -43,6 +43,18 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+function bootNow(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function logBoot(stage: string, startedAt: number): void {
+  const elapsed = bootNow() - startedAt;
+  console.info(`[boot][auth] ${stage} ${elapsed.toFixed(1)}ms`);
+}
+
 function isGoogleUser(user: User): boolean {
   return user.providerData.some((provider) => provider.providerId === "google.com");
 }
@@ -57,6 +69,7 @@ function normalizedAuthUser(user: User): AuthUser {
 }
 
 export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element {
+  const bootStartedAt = useMemo(() => bootNow(), []);
   const [appAccessToken, setAppAccessToken] = useState<string | null>(null);
   const [firebaseIdToken, setFirebaseIdToken] = useState<string | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -70,7 +83,9 @@ export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element
     let mounted = true;
 
     const restore = async () => {
+      logBoot("restore:start", bootStartedAt);
       const session = await getAuthSession();
+      logBoot("restore:session_loaded", bootStartedAt);
       if (!mounted) return;
       const restoredUser =
         session.user ??
@@ -94,11 +109,18 @@ export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element
       }
 
       if (!auth) {
+        logBoot("restore:no_firebase_auth", bootStartedAt);
         setLoading(false);
         return;
       }
 
+      if (!session.token && !restoredProvider) {
+        setLoading(false);
+        logBoot("restore:signed_out_fast_path", bootStartedAt);
+      }
+
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        logBoot("firebase:onAuthStateChanged", bootStartedAt);
         setFirebaseUser(currentUser);
 
         if (!currentUser) {
@@ -116,11 +138,13 @@ export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element
           }
 
           setLoading(false);
+          logBoot("firebase:no_current_user", bootStartedAt);
           return;
         }
 
         try {
           const idToken = await currentUser.getIdToken(true);
+          logBoot("firebase:id_token_ready", bootStartedAt);
           setFirebaseIdToken(idToken);
 
           const verified = isGoogleUser(currentUser) || currentUser.emailVerified;
@@ -131,6 +155,7 @@ export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element
           }
 
           const backend = await authFirebase(idToken);
+          logBoot("firebase:backend_session_ready", bootStartedAt);
           await setAuthSession(backend.accessToken, backend.user, "firebase");
           setSessionProvider("firebase");
           setAppAccessToken(backend.accessToken);
@@ -141,6 +166,7 @@ export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element
           setAuthState("signedOut");
         } finally {
           setLoading(false);
+          logBoot("firebase:complete", bootStartedAt);
         }
       });
 

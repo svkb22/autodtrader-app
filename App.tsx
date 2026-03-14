@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
@@ -9,6 +9,10 @@ import { OnboardingProvider, useOnboarding } from "@/onboarding/OnboardingContex
 function AppShell(): React.JSX.Element {
   const { loading } = useAuth();
   const { ready } = useOnboarding();
+
+  useEffect(() => {
+    console.info(`[boot][app] shell loading=${String(loading)} onboardingReady=${String(ready)}`);
+  }, [loading, ready]);
 
   if (loading || !ready) {
     return <Loading />;

@@ -39,7 +39,20 @@ const defaultDraft: OnboardingDraftState = {
 
 const OnboardingContext = createContext<OnboardingContextValue | undefined>(undefined);
 
+function bootNow(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function logBoot(stage: string, startedAt: number): void {
+  const elapsed = bootNow() - startedAt;
+  console.info(`[boot][onboarding] ${stage} ${elapsed.toFixed(1)}ms`);
+}
+
 export function OnboardingProvider({ children }: PropsWithChildren): React.JSX.Element {
+  const bootStartedAt = useMemo(() => bootNow(), []);
   const { authState, loading: authLoading, userId } = useAuth();
   const [ready, setReady] = useState<boolean>(false);
   const [completed, setCompleted] = useState<boolean>(false);
@@ -63,18 +76,22 @@ export function OnboardingProvider({ children }: PropsWithChildren): React.JSX.E
       setActivationMode(null);
       setDraft(defaultDraft);
       setReady(true);
+      logBoot("ready_signed_out_or_unverified", bootStartedAt);
       return () => {
         mounted = false;
       };
     }
 
+    logBoot("load:start", bootStartedAt);
     getOnboardingState()
       .then(async (state) => {
+        logBoot("load:storage_ready", bootStartedAt);
         if (!mounted) return;
         let resolved = state;
         if (!state.completed) {
           try {
             const broker = await getBrokerStatus();
+            logBoot("load:broker_status_ready", bootStartedAt);
             const liveConnected = Boolean(broker?.alpaca?.live?.connected);
             const paperConnected = Boolean(broker?.alpaca?.paper?.connected);
             if (liveConnected || paperConnected) {
@@ -92,6 +109,7 @@ export function OnboardingProvider({ children }: PropsWithChildren): React.JSX.E
       .finally(() => {
         if (mounted) {
           setReady(true);
+          logBoot("load:complete", bootStartedAt);
         }
       });
 
