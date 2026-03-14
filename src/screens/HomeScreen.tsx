@@ -28,6 +28,7 @@ type Props = {
 type SparkRange = "1d" | "1w" | "1m";
 type PositionStateFilter = "all" | "open" | "closed";
 type SparkPoint = { x: number; y: number };
+type SparkDatum = { value: number; ts: number; label: string };
 
 type TodaySummary = {
   executed: number;
@@ -62,68 +63,77 @@ function computeAllocatedCapital(equity: number, risk: RiskProfile): number {
   return Math.max(0, validEquity * risk.capital_limit_value);
 }
 
-function rangeCutoff(range: SparkRange): number {
-  const now = Date.now();
-  if (range === "1d") return now - 24 * 60 * 60 * 1000;
-  if (range === "1w") return now - 7 * 24 * 60 * 60 * 1000;
-  return now - 30 * 24 * 60 * 60 * 1000;
+function rangeSpec(range: SparkRange): { bucketCount: number; bucketMs: number } {
+  if (range === "1d") return { bucketCount: 24, bucketMs: 60 * 60 * 1000 };
+  if (range === "1w") return { bucketCount: 7, bucketMs: 24 * 60 * 60 * 1000 };
+  return { bucketCount: 30, bucketMs: 24 * 60 * 60 * 1000 };
 }
 
-function buildSparkSeries(allocatedCapital: number, executions: ExecutionRecentItem[], range: SparkRange): number[] {
-  const baseline = Number.isFinite(allocatedCapital) ? allocatedCapital : 0;
-  const cutoff = rangeCutoff(range);
+function formatSparkLabel(ts: number, range: SparkRange): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "--";
+  if (range === "1d") {
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
-  const realizedEvents = executions
+function realizedExecutionEvents(executions: ExecutionRecentItem[]): Array<{ ts: number; pnl: number }> {
+  return executions
     .filter((item) => typeof item.realized_pnl === "number")
-    .filter((item) => {
+    .map((item) => {
       const ts = Date.parse(item.exit_filled_at ?? item.filled_at ?? item.submitted_at);
-      return !Number.isNaN(ts) && ts >= cutoff;
+      return { ts, pnl: Number(item.realized_pnl ?? 0) };
     })
-    .sort((a, b) => {
-      const aTs = Date.parse(a.exit_filled_at ?? a.filled_at ?? a.submitted_at);
-      const bTs = Date.parse(b.exit_filled_at ?? b.filled_at ?? b.submitted_at);
-      return aTs - bTs;
-    })
-    .slice(-80);
+    .filter((item) => !Number.isNaN(item.ts))
+    .sort((a, b) => a.ts - b.ts);
+}
 
-  if (realizedEvents.length === 0) {
-    return [baseline, baseline];
+function buildSparkSeries(currentCapital: number, executions: ExecutionRecentItem[], range: SparkRange): SparkDatum[] {
+  const current = Number.isFinite(currentCapital) ? currentCapital : 0;
+  const { bucketCount, bucketMs } = rangeSpec(range);
+  const now = Date.now();
+  const rangeStart = now - bucketCount * bucketMs;
+  const events = realizedExecutionEvents(executions);
+  const eventsInRange = events.filter((item) => item.ts >= rangeStart && item.ts <= now);
+  const periodDelta = eventsInRange.reduce((sum, item) => sum + item.pnl, 0);
+  const startValue = current - periodDelta;
+  const bucketPnls = Array.from({ length: bucketCount }, () => 0);
+
+  for (const event of eventsInRange) {
+    const rawIndex = Math.floor((event.ts - rangeStart) / bucketMs);
+    const bucketIndex = clampIndex(rawIndex, bucketCount);
+    bucketPnls[bucketIndex] += event.pnl;
   }
 
-  const values: number[] = [baseline];
-  let running = baseline;
-  for (const event of realizedEvents) {
-    running += Number(event.realized_pnl ?? 0);
-    values.push(running);
+  const series: SparkDatum[] = [{ value: startValue, ts: rangeStart, label: formatSparkLabel(rangeStart, range) }];
+  let running = startValue;
+  for (let index = 0; index < bucketCount; index += 1) {
+    running += bucketPnls[index];
+    const bucketTs = rangeStart + (index + 1) * bucketMs;
+    series.push({
+      value: running,
+      ts: bucketTs,
+      label: formatSparkLabel(bucketTs, range),
+    })
   }
-  return values;
+  return series;
 }
 
 function computeCurrentCapital(allocatedCapital: number, executions: ExecutionRecentItem[]): number {
   const baseline = Number.isFinite(allocatedCapital) ? allocatedCapital : 0;
-  const realizedEvents = executions
-    .filter((item) => typeof item.realized_pnl === "number")
-    .sort((a, b) => {
-      const aTs = Date.parse(a.exit_filled_at ?? a.filled_at ?? a.submitted_at);
-      const bTs = Date.parse(b.exit_filled_at ?? b.filled_at ?? b.submitted_at);
-      return aTs - bTs;
-    });
+  const realizedEvents = realizedExecutionEvents(executions);
   let running = baseline;
   for (const event of realizedEvents) {
-    running += Number(event.realized_pnl ?? 0);
+    running += event.pnl;
   }
   return running;
 }
 
 function computePeriodDelta(executions: ExecutionRecentItem[], range: SparkRange): number {
-  const cutoff = rangeCutoff(range);
-  return executions
-    .filter((item) => typeof item.realized_pnl === "number")
-    .filter((item) => {
-      const ts = Date.parse(item.exit_filled_at ?? item.filled_at ?? item.submitted_at);
-      return !Number.isNaN(ts) && ts >= cutoff;
-    })
-    .reduce((sum, item) => sum + Number(item.realized_pnl ?? 0), 0);
+  const { bucketCount, bucketMs } = rangeSpec(range);
+  const cutoff = Date.now() - bucketCount * bucketMs;
+  return realizedExecutionEvents(executions).filter((item) => item.ts >= cutoff).reduce((sum, item) => sum + item.pnl, 0);
 }
 
 function projectSpark(values: number[], width: number, height: number): SparkPoint[] {
@@ -247,9 +257,10 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     return !isExpired(proposal.expires_at);
   }, [proposal]);
 
-  const sparkValues = useMemo(() => buildSparkSeries(allocatedCapital, executionRecent, sparkRange), [allocatedCapital, executionRecent, sparkRange]);
-  const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 180), [sparkValues, sparkWidth]);
   const currentCapital = useMemo(() => computeCurrentCapital(allocatedCapital, executionRecent), [allocatedCapital, executionRecent]);
+  const sparkSeries = useMemo(() => buildSparkSeries(currentCapital, executionRecent, sparkRange), [currentCapital, executionRecent, sparkRange]);
+  const sparkValues = useMemo(() => sparkSeries.map((item) => item.value), [sparkSeries]);
+  const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 180), [sparkValues, sparkWidth]);
   const periodDelta = useMemo(() => computePeriodDelta(executionRecent, sparkRange), [executionRecent, sparkRange]);
   const periodStartCapital = currentCapital - periodDelta;
   const periodDeltaPct = Math.abs(periodStartCapital) > 1e-6 ? (periodDelta / periodStartCapital) * 100 : 0;
@@ -265,6 +276,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   const selectedSparkIndex = activeSparkIndex == null ? sparkValues.length - 1 : clampIndex(activeSparkIndex, sparkValues.length);
   const selectedSparkValue = sparkValues.length > 0 ? sparkValues[selectedSparkIndex] : currentCapital;
   const selectedSparkPoint = sparkPoints.length > 0 ? sparkPoints[clampIndex(selectedSparkIndex, sparkPoints.length)] : null;
+  const selectedSparkLabel = sparkSeries.length > 0 ? sparkSeries[clampIndex(selectedSparkIndex, sparkSeries.length)].label : "--";
   const selectedSparkDelta = selectedSparkValue - allocatedCapital;
   const displayedDelta = activeSparkIndex == null ? periodDelta : selectedSparkDelta;
   const displayedDeltaPct =
@@ -418,7 +430,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
                 <Text style={styles.snapshotMeta}>
                   {activeSparkIndex == null
                     ? `Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`
-                    : `Inspecting point ${selectedSparkIndex + 1} of ${sparkValues.length}`}
+                    : selectedSparkLabel}
                 </Text>
               </View>
 
