@@ -72,6 +72,29 @@ export type TradingWindowStatus = {
   max_trades_per_symbol_per_day: number;
 };
 
+export type EquityCurveRange = "1d" | "1w" | "1m";
+
+export type EquityCurvePoint = {
+  ts: string;
+  display_value?: number | null;
+  display_value_usd?: number | null;
+  allocated_capital?: number | null;
+  allocated_capital_usd?: number | null;
+  realized_pnl_total?: number | null;
+  realized_pnl_total_usd?: number | null;
+  unrealized_pnl_total?: number | null;
+  unrealized_pnl_total_usd?: number | null;
+  total_pnl_total?: number | null;
+  total_pnl_usd?: number | null;
+};
+
+export type EquityCurveResponse = {
+  range: EquityCurveRange;
+  mode: "paper" | "live";
+  currency: string;
+  points: EquityCurvePoint[];
+};
+
 export type ProposalStatus =
   | "pending"
   | "approved"

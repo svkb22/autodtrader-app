@@ -8,6 +8,8 @@ import {
   BrokerSettings,
   BrokerSettingsUpdate,
   ExecutionRecentResponse,
+  EquityCurveRange,
+  EquityCurveResponse,
   RAnalyticsSummary,
   ExecutionSummary,
   Order,
@@ -577,6 +579,12 @@ export async function getExecutionSummary(window: "1d" | "5d" | "all" = "1d"): P
 export async function getExecutionRecent(limit = 10): Promise<ExecutionRecentResponse> {
   const res = await api.get<ExecutionRecentResponse>(`/metrics/execution/recent?limit=${limit}`);
   return res.data ?? { items: [] };
+}
+
+export async function getEquityCurve(range: EquityCurveRange): Promise<EquityCurveResponse> {
+  const safeRange = range === "1d" || range === "1w" || range === "1m" ? range : "1d";
+  const res = await api.get<EquityCurveResponse>(`/analytics/equity-curve?range=${safeRange}`);
+  return res.data ?? { range: safeRange, mode: "paper", currency: "USD", points: [] };
 }
 
 export async function getRAnalyticsSummary(days = 7): Promise<RAnalyticsSummary> {

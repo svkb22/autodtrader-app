@@ -5,6 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { getActivity } from "@/api/activity";
 import {
   approveProposal,
+  getEquityCurve,
   getBrokerAccount,
   getCurrentProposal,
   getExecutionRecent,
@@ -15,7 +16,7 @@ import {
   rejectProposal,
   toApiError,
 } from "@/api/client";
-import { ActivityItem, ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile, TradingWindowStatus } from "@/api/types";
+import { ActivityItem, EquityCurvePoint, ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile, TradingWindowStatus } from "@/api/types";
 import Countdown from "@/components/Countdown";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
 import { usd } from "@/utils/format";
@@ -120,6 +121,18 @@ function buildSparkSeries(currentCapital: number, executions: ExecutionRecentIte
   return series;
 }
 
+function normalizeCurvePoint(point: EquityCurvePoint, range: SparkRange): SparkDatum | null {
+  const ts = Date.parse(point.ts);
+  if (Number.isNaN(ts)) return null;
+  const rawValue = point.display_value_usd ?? point.display_value ?? null;
+  if (!Number.isFinite(rawValue)) return null;
+  return {
+    value: Number(rawValue),
+    ts,
+    label: formatSparkLabel(ts, range),
+  };
+}
+
 function computeCurrentCapital(allocatedCapital: number, executions: ExecutionRecentItem[]): number {
   const baseline = Number.isFinite(allocatedCapital) ? allocatedCapital : 0;
   const realizedEvents = realizedExecutionEvents(executions);
@@ -179,6 +192,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   const [todayPositions, setTodayPositions] = useState<ActivityItem[]>([]);
   const [positionFilter, setPositionFilter] = useState<PositionStateFilter>("all");
   const [executionRecent, setExecutionRecent] = useState<ExecutionRecentItem[]>([]);
+  const [equityCurvePoints, setEquityCurvePoints] = useState<EquityCurvePoint[]>([]);
   const [sparkRange, setSparkRange] = useState<SparkRange>("1d");
   const [equity, setEquity] = useState<number>(0);
   const [buyingPower, setBuyingPower] = useState<number>(0);
@@ -199,7 +213,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     setRefreshing(true);
     setErrorText("");
     try {
-      const [current, history, execRecent, risk, activeMode, account, windowStatus, activity] = await Promise.all([
+      const [current, history, execRecent, risk, activeMode, account, windowStatus, activity, curve] = await Promise.all([
         getCurrentProposal(),
         getProposalsHistory(200),
         getExecutionRecent(400).catch(() => ({ items: [] })),
@@ -208,6 +222,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
         getBrokerAccount(),
         getTradingWindowStatus().catch(() => null),
         getActivity({ status: "all", range: "1w", limit: 200, includeOverview: false }).catch(() => ({ items: [] })),
+        getEquityCurve(sparkRange).catch(() => ({ range: sparkRange, mode: "paper", currency: "USD", points: [] })),
       ]);
 
       const executedToday = history.items.filter((item) => (item.status === "executed" || item.status === "approved") && historyFilledToday(item)).length;
@@ -228,6 +243,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       setSummary({ executed: executedToday, closed: closedToday, expired: expiredToday });
       setTodayPositions(todayTradeRows);
       setExecutionRecent(execRecent.items ?? []);
+      setEquityCurvePoints(curve.points ?? []);
       setSystemPaused(Boolean(risk.kill_switch_enabled));
       setTradingWindow(windowStatus);
       setEquity(Number.isFinite(currentEquity) ? currentEquity : 0);
@@ -239,7 +255,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       setRefreshing(false);
       setLoadedOnce(true);
     }
-  }, []);
+  }, [sparkRange]);
 
   useFocusEffect(
     useCallback(() => {
@@ -258,11 +274,18 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
   }, [proposal]);
 
   const currentCapital = useMemo(() => computeCurrentCapital(allocatedCapital, executionRecent), [allocatedCapital, executionRecent]);
-  const sparkSeries = useMemo(() => buildSparkSeries(currentCapital, executionRecent, sparkRange), [currentCapital, executionRecent, sparkRange]);
+  const sparkSeries = useMemo(() => {
+    const fromApi = equityCurvePoints.map((point) => normalizeCurvePoint(point, sparkRange)).filter((point): point is SparkDatum => point != null);
+    if (fromApi.length > 1) return fromApi;
+    return buildSparkSeries(currentCapital, executionRecent, sparkRange);
+  }, [currentCapital, equityCurvePoints, executionRecent, sparkRange]);
   const sparkValues = useMemo(() => sparkSeries.map((item) => item.value), [sparkSeries]);
   const sparkPoints = useMemo(() => projectSpark(sparkValues, sparkWidth, 180), [sparkValues, sparkWidth]);
-  const periodDelta = useMemo(() => computePeriodDelta(executionRecent, sparkRange), [executionRecent, sparkRange]);
-  const periodStartCapital = currentCapital - periodDelta;
+  const periodDelta = useMemo(() => {
+    if (sparkSeries.length <= 1) return computePeriodDelta(executionRecent, sparkRange);
+    return sparkSeries[sparkSeries.length - 1].value - sparkSeries[0].value;
+  }, [executionRecent, sparkRange, sparkSeries]);
+  const periodStartCapital = (sparkSeries.length > 0 ? sparkSeries[0].value : currentCapital);
   const periodDeltaPct = Math.abs(periodStartCapital) > 1e-6 ? (periodDelta / periodStartCapital) * 100 : 0;
   const sparkBaselineY = useMemo(() => {
     if (sparkValues.length === 0) return null;
