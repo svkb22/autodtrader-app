@@ -4,6 +4,8 @@ import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { getFinnhubCompanyContext } from "@/api/finnhub";
 import { getProposalsHistory, toApiError } from "@/api/client";
 import { ProposalHistoryItem } from "@/api/types";
+import BrandLockup from "@/components/BrandLockup";
+import { prudexTheme } from "@/theme/prudex";
 import { dateTime, signedPct, usd, usdCompact } from "@/utils/format";
 
 type Props = {
@@ -40,16 +42,17 @@ export default function ProposalDetailScreen({ route }: Props): React.JSX.Elemen
   if (!item) {
     return (
       <View style={styles.center}>
-        <Text>Proposal not found</Text>
+        <Text style={styles.subtle}>Proposal not found</Text>
       </View>
     );
   }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <BrandLockup variant="header" />
       <Text style={styles.title}>{item.side.toUpperCase()} {item.symbol}</Text>
       <Text style={styles.meta}>Status: {item.status}</Text>
-      <Text style={styles.meta}>Strength: {item.strength}</Text>
+      <Text style={styles.meta}>Setup quality: {item.strength}</Text>
 
       <View style={styles.contextCard}>
         <Text style={styles.cardTitle}>Company Context</Text>
@@ -116,29 +119,29 @@ export default function ProposalDetailScreen({ route }: Props): React.JSX.Elemen
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1, backgroundColor: prudexTheme.colors.bg },
   content: { padding: 16, gap: 10 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 24, fontWeight: "800", color: "#0f172a" },
-  meta: { color: "#334155", fontWeight: "600" },
+  title: { fontSize: 24, fontWeight: "800", color: prudexTheme.colors.text },
+  meta: { color: prudexTheme.colors.textMuted, fontWeight: "600" },
   contextCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: prudexTheme.colors.surface,
     borderWidth: 1,
-    borderColor: "#dbe3ef",
+    borderColor: prudexTheme.colors.border,
     borderRadius: 12,
     padding: 12,
     gap: 4,
   },
   card: {
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.border,
     borderRadius: 10,
     padding: 12,
     gap: 4,
   },
-  cardTitle: { color: "#0f172a", fontWeight: "700" },
-  row: { color: "#334155" },
-  subtle: { color: "#64748b" },
-  reason: { color: "#64748b", marginTop: 4 },
+  cardTitle: { color: prudexTheme.colors.text, fontWeight: "700" },
+  row: { color: prudexTheme.colors.textMuted },
+  subtle: { color: prudexTheme.colors.textSubtle },
+  reason: { color: prudexTheme.colors.textSubtle, marginTop: 4 },
 });

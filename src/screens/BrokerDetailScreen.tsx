@@ -7,8 +7,10 @@ import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
 import { activateSystem, alpacaDisconnect, getBrokerAccount, toApiError } from "@/api/client";
 import { BrokerAccount } from "@/api/types";
 import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
+import BrandLockup from "@/components/BrandLockup";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { BrokerMode, getActiveBrokerMode, setActiveBrokerMode } from "@/storage/brokerMode";
+import { prudexTheme } from "@/theme/prudex";
 import { openExternalUrl } from "@/utils/openExternalUrl";
 
 type Props = {
@@ -152,11 +154,12 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      <BrandLockup variant="header" />
       <View style={styles.headerRow}>
         <AlpacaLogoBadge size={52} />
         <View style={styles.headerTextWrap}>
           <Text style={styles.title}>Alpaca</Text>
-          <Text style={styles.subtitle}>One account per environment. Paper + Live supported.</Text>
+          <Text style={styles.subtitle}>Execution venue access and routing controls.</Text>
         </View>
       </View>
 
@@ -175,9 +178,9 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Connection Slots</Text>
+        <Text style={styles.sectionTitle}>Connection slots</Text>
         {loading ? (
-          <ActivityIndicator size="small" color="#64748b" />
+          <ActivityIndicator size="small" color={prudexTheme.colors.textSubtle} />
         ) : (
           <View style={styles.statusWrap}>
             <Text style={styles.statusLine}>{paperConnected ? "Paper: Connected" : "Paper: Not connected"}</Text>
@@ -277,87 +280,88 @@ function fmtUsd(value: string | number | null | undefined): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1, backgroundColor: prudexTheme.colors.bg },
   content: { padding: 16, gap: 12 },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   headerTextWrap: { flex: 1 },
-  title: { fontSize: 24, fontWeight: "700", color: "#0f172a" },
-  subtitle: { color: "#475569", fontSize: 14 },
+  title: { fontSize: 24, fontWeight: "700", color: prudexTheme.colors.text },
+  subtitle: { color: prudexTheme.colors.textMuted, fontSize: 14 },
   card: {
     borderRadius: 14,
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.border,
     padding: 14,
     gap: 10,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#0f172a" },
+  sectionTitle: { fontSize: 16, fontWeight: "600", color: prudexTheme.colors.text },
   modeRow: { flexDirection: "row", gap: 8 },
   modePill: {
     flex: 1,
     minHeight: 42,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: prudexTheme.colors.borderStrong,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: prudexTheme.colors.surfaceMuted,
   },
-  modePillActive: { backgroundColor: "#0f172a", borderColor: "#0f172a" },
-  modeText: { color: "#334155", fontWeight: "600" },
-  modeTextActive: { color: "white" },
+  modePillActive: { backgroundColor: prudexTheme.colors.primary, borderColor: prudexTheme.colors.primary },
+  modeText: { color: prudexTheme.colors.textMuted, fontWeight: "600" },
+  modeTextActive: { color: prudexTheme.colors.white },
   statusWrap: { gap: 4 },
-  statusLine: { color: "#334155", fontSize: 14 },
+  statusLine: { color: prudexTheme.colors.textMuted, fontSize: 14 },
   accountMetaWrap: {
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.border,
     borderRadius: 10,
-    backgroundColor: "#f8fafc",
+    backgroundColor: prudexTheme.colors.surfaceMuted,
     padding: 10,
     gap: 6,
   },
   accountMetaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  accountMetaLabel: { color: "#64748b", fontSize: 13 },
-  accountMetaValue: { color: "#0f172a", fontSize: 13, fontWeight: "600" },
+  accountMetaLabel: { color: prudexTheme.colors.textSubtle, fontSize: 13 },
+  accountMetaValue: { color: prudexTheme.colors.text, fontSize: 13, fontWeight: "600" },
   actionsWrap: { gap: 8, marginTop: 2 },
   rowButton: {
     minHeight: 46,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
+    borderColor: prudexTheme.colors.border,
+    backgroundColor: prudexTheme.colors.surfaceMuted,
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   rowButtonDisabled: {
-    backgroundColor: "#f1f5f9",
-    borderColor: "#e2e8f0",
+    backgroundColor: prudexTheme.colors.surfaceMuted,
+    borderColor: prudexTheme.colors.border,
   },
   rowButtonDanger: {
-    borderColor: "#fecaca",
-    backgroundColor: "#fff1f2",
+    borderColor: "#5E2B2B",
+    backgroundColor: "#2A171A",
   },
-  rowText: { color: "#0f172a", fontWeight: "600" },
-  rowTextDisabled: { color: "#64748b" },
-  rowTextDanger: { color: "#b91c1c", fontWeight: "700" },
-  chevron: { color: "#64748b", fontSize: 20, lineHeight: 20 },
-  chevronDanger: { color: "#b91c1c", fontSize: 20, lineHeight: 20 },
-  error: { color: "#b91c1c", fontSize: 13 },
+  rowText: { color: prudexTheme.colors.text, fontWeight: "600" },
+  rowTextDisabled: { color: prudexTheme.colors.textSubtle },
+  rowTextDanger: { color: prudexTheme.colors.negative, fontWeight: "700" },
+  chevron: { color: prudexTheme.colors.textSubtle, fontSize: 20, lineHeight: 20 },
+  chevronDanger: { color: prudexTheme.colors.negative, fontSize: 20, lineHeight: 20 },
+  error: { color: prudexTheme.colors.negative, fontSize: 13 },
   disabled: { opacity: 0.6 },
   signupHelp: {
     marginTop: 8,
     gap: 2,
   },
   signupHelpLink: {
-    color: "#0f172a",
+    color: prudexTheme.colors.primarySoft,
     fontSize: 12,
     fontWeight: "600",
     textDecorationLine: "underline",
   },
   signupHelpText: {
-    color: "#64748b",
+    color: prudexTheme.colors.textSubtle,
     fontSize: 11,
   },
 });

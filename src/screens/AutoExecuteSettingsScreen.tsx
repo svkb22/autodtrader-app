@@ -4,6 +4,8 @@ import { NavigationProp, ParamListBase, useNavigation } from "@react-navigation/
 
 import { AutoExecuteStrength, BrokerSettings } from "@/api/types";
 import { getBrokerSettings, toApiError, updateBrokerSettings } from "@/api/client";
+import BrandLockup from "@/components/BrandLockup";
+import { prudexTheme } from "@/theme/prudex";
 
 const options: Array<{ key: AutoExecuteStrength; label: string }> = [
   { key: "strong_only", label: "Strong only" },
@@ -50,17 +52,18 @@ export default function AutoExecuteSettingsScreen(): React.JSX.Element {
   if (!settings) {
     return (
       <View style={styles.center}>
-        <Text>Loading...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <BrandLockup variant="header" />
       <View style={styles.row}>
         <View style={styles.rowText}>
           <Text style={styles.label}>Auto Execution</Text>
-          <Text style={styles.help}>If enabled, eligible proposals can place orders automatically.</Text>
+          <Text style={styles.help}>If enabled, eligible setups can route orders automatically within guardrails.</Text>
         </View>
         <Switch
           value={settings.auto_execute_enabled}
@@ -99,52 +102,53 @@ export default function AutoExecuteSettingsScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc", padding: 16, gap: 14 },
+  container: { flex: 1, backgroundColor: prudexTheme.colors.bg, padding: 16, gap: 14 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText: { color: prudexTheme.colors.textSubtle },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.border,
   },
   rowText: { flex: 1, paddingRight: 10 },
-  label: { color: "#0f172a", fontSize: 16, fontWeight: "700" },
-  help: { color: "#64748b", marginTop: 4 },
+  label: { color: prudexTheme.colors.text, fontSize: 16, fontWeight: "700" },
+  help: { color: prudexTheme.colors.textSubtle, marginTop: 4 },
   optionList: { gap: 8 },
   option: {
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: prudexTheme.colors.borderStrong,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
   optionActive: {
-    borderColor: "#0f172a",
-    backgroundColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.primary,
+    backgroundColor: prudexTheme.colors.surfaceMuted,
   },
-  optionText: { color: "#334155", fontWeight: "600" },
-  optionTextActive: { color: "#0f172a" },
+  optionText: { color: prudexTheme.colors.textMuted, fontWeight: "600" },
+  optionTextActive: { color: prudexTheme.colors.primarySoft },
   safeguards: {
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.border,
     padding: 12,
     gap: 4,
   },
-  safeguardTitle: { color: "#0f172a", fontWeight: "700" },
-  safeguardItem: { color: "#334155" },
+  safeguardTitle: { color: prudexTheme.colors.text, fontWeight: "700" },
+  safeguardItem: { color: prudexTheme.colors.textMuted },
   saveButton: {
-    backgroundColor: "#0f172a",
+    backgroundColor: prudexTheme.colors.primary,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
   },
-  saveText: { color: "white", fontWeight: "700" },
+  saveText: { color: prudexTheme.colors.white, fontWeight: "700" },
   disabled: { opacity: 0.5 },
 });

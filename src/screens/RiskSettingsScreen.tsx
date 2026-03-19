@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
 import { getRisk, toApiError, updateRisk } from "@/api/client";
+import BrandLockup from "@/components/BrandLockup";
+import { prudexTheme } from "@/theme/prudex";
 
 type Props = {
   navigation: { navigate: (route: "Tabs") => void };
@@ -59,6 +61,7 @@ export default function RiskSettingsScreen({ navigation }: Props): React.JSX.Ele
 
   return (
     <View style={styles.container}>
+      <BrandLockup variant="header" />
       <View style={styles.labelRow}>
         <Text style={styles.label}>Max Daily Loss (USD)</Text>
         <Pressable onPress={() => toggleTip("maxDailyLoss")}><Text style={styles.tipIcon}>i</Text></Pressable>
@@ -130,8 +133,8 @@ export default function RiskSettingsScreen({ navigation }: Props): React.JSX.Ele
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, gap: 10, backgroundColor: "#f8fafc" },
-  label: { color: "#1f2937", fontWeight: "600" },
+  container: { flex: 1, padding: 16, gap: 10, backgroundColor: prudexTheme.colors.bg },
+  label: { color: prudexTheme.colors.text, fontWeight: "600" },
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   tipIcon: {
     width: 18,
@@ -139,42 +142,43 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     textAlign: "center",
     textAlignVertical: "center",
-    backgroundColor: "#e2e8f0",
-    color: "#0f172a",
+    backgroundColor: prudexTheme.colors.border,
+    color: prudexTheme.colors.text,
     fontSize: 12,
     fontWeight: "700",
     overflow: "hidden",
   },
-  tip: { color: "#64748b", fontSize: 12, marginTop: -4 },
+  tip: { color: prudexTheme.colors.textSubtle, fontSize: 12, marginTop: -4 },
   row: { flexDirection: "row", gap: 8 },
   pill: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: prudexTheme.colors.borderStrong,
     borderRadius: 999,
     paddingVertical: 8,
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
   },
-  activePill: { backgroundColor: "#0f172a", borderColor: "#0f172a" },
-  pillText: { color: "#334155", fontWeight: "600" },
-  activePillText: { color: "white" },
+  activePill: { backgroundColor: prudexTheme.colors.primary, borderColor: prudexTheme.colors.primary },
+  pillText: { color: prudexTheme.colors.textMuted, fontWeight: "600" },
+  activePillText: { color: prudexTheme.colors.white },
   input: {
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: prudexTheme.colors.borderStrong,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
+    color: prudexTheme.colors.text,
   },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginVertical: 6 },
   button: {
     marginTop: 8,
-    backgroundColor: "#0f172a",
+    backgroundColor: prudexTheme.colors.primary,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "white", fontWeight: "700" },
+  buttonText: { color: prudexTheme.colors.white, fontWeight: "700" },
 });
