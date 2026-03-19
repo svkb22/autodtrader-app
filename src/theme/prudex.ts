@@ -21,6 +21,7 @@ export const prudexTheme = {
     white: "#F7F7F7",
     black: "#111315",
     overlay: "rgba(11, 31, 42, 0.72)",
+    glow: "rgba(79, 179, 179, 0.14)",
   },
   spacing: {
     xxs: 4,
@@ -54,6 +55,13 @@ export const prudexTheme = {
       shadowOffset: { width: 0, height: 8 },
       elevation: 8,
     },
+    glow: {
+      shadowColor: "#4FB3B3",
+      shadowOpacity: 0.16,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 0 },
+      elevation: 10,
+    },
   },
 } as const;
 
@@ -63,4 +71,3 @@ export const surfaceCard = {
   borderColor: prudexTheme.colors.border,
   borderRadius: prudexTheme.radius.md,
 };
-

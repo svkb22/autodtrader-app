@@ -6,7 +6,10 @@ import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 
 import { authMagicLink, toApiError } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import BrandBackdrop from "@/components/BrandBackdrop";
+import BrandLockup from "@/components/BrandLockup";
 import { firebaseAuth, firebaseConfigReady } from "@/auth/firebaseClient";
+import { prudexTheme } from "@/theme/prudex";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -136,7 +139,10 @@ export default function LoginScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Auto Day-Trader</Text>
+      <BrandBackdrop />
+      <BrandLockup variant="header" />
+      <Text style={styles.title}>Prudex access</Text>
+      <Text style={styles.subtitle}>Legacy authentication screen for development and recovery flows.</Text>
       <Pressable
         style={[styles.googleButton, (!request || busy || !googleConfigured) && styles.disabled]}
         onPress={() => promptAsync()}
@@ -151,7 +157,7 @@ export default function LoginScreen(): React.JSX.Element {
         <Text style={styles.hint}>Google/Firebase auth not configured. Set EXPO_PUBLIC_FIREBASE_* and EXPO_PUBLIC_GOOGLE_* IDs.</Text>
       ) : null}
       <Pressable style={[styles.primary, styles.quick]} onPress={onQuickSignIn} disabled={busy}>
-        <Text style={styles.primaryText}>{busy ? "Signing in..." : "Quick Sign-In (Default User)"}</Text>
+        <Text style={styles.primaryText}>{busy ? "Signing in..." : "Quick Sign-In (Default Workspace)"}</Text>
       </Pressable>
       <TextInput style={styles.input} placeholder="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
       <Pressable style={styles.primary} onPress={onSend} disabled={busy || !email.trim()}>
@@ -169,37 +175,39 @@ export default function LoginScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, gap: 12, justifyContent: "center", backgroundColor: "#f8fafc" },
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 8, color: "#0f172a" },
+  container: { flex: 1, padding: 20, gap: 12, justifyContent: "center", backgroundColor: prudexTheme.colors.bg },
+  title: { fontSize: 28, fontWeight: "700", marginBottom: 4, color: prudexTheme.colors.text },
+  subtitle: { color: prudexTheme.colors.textSubtle, marginBottom: 8 },
   input: {
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: prudexTheme.colors.borderStrong,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
+    color: prudexTheme.colors.text,
   },
   primary: {
-    backgroundColor: "#0f172a",
+    backgroundColor: prudexTheme.colors.primary,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
   },
-  quick: { backgroundColor: "#334155" },
+  quick: { backgroundColor: prudexTheme.colors.surfaceElevated },
   googleButton: {
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    backgroundColor: "white",
+    borderColor: prudexTheme.colors.borderStrong,
+    backgroundColor: prudexTheme.colors.surface,
   },
-  googleButtonText: { color: "#0f172a", fontWeight: "700" },
+  googleButtonText: { color: prudexTheme.colors.text, fontWeight: "700" },
   googleButtonInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   googleIcon: { width: 18, height: 18 },
-  primaryText: { color: "white", fontWeight: "700" },
+  primaryText: { color: prudexTheme.colors.white, fontWeight: "700" },
   disabled: { opacity: 0.5 },
-  status: { color: "#334155", textAlign: "center" },
-  error: { color: "#b91c1c", textAlign: "center" },
-  hint: { color: "#64748b", textAlign: "center", fontSize: 12 },
+  status: { color: prudexTheme.colors.textMuted, textAlign: "center" },
+  error: { color: prudexTheme.colors.negative, textAlign: "center" },
+  hint: { color: prudexTheme.colors.textSubtle, textAlign: "center", fontSize: 12 },
 });

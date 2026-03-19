@@ -17,6 +17,7 @@ import {
   toApiError,
 } from "@/api/client";
 import { ActivityItem, EquityCurvePoint, ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile, TradingWindowStatus } from "@/api/types";
+import BrandBackdrop from "@/components/BrandBackdrop";
 import BrandLockup from "@/components/BrandLockup";
 import Countdown from "@/components/Countdown";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
@@ -389,6 +390,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
     >
+      <BrandBackdrop />
       <View style={styles.brandRow}>
         <BrandLockup variant="header" showTagline />
       </View>
@@ -416,7 +418,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
           </View>
         ) : !proposal ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No proposals awaiting approval.</Text>
+            <Text style={styles.emptyText}>No setups awaiting review.</Text>
           </View>
         ) : (
           <View style={styles.card}>
@@ -673,7 +675,7 @@ const styles = StyleSheet.create({
   rejectButton: { height: 46, borderRadius: 10, backgroundColor: prudexTheme.colors.negative, alignItems: "center", justifyContent: "center" },
   actionButtonText: { color: prudexTheme.colors.white, fontWeight: "700" },
   disabled: { opacity: 0.5 },
-  snapshotCard: { backgroundColor: prudexTheme.colors.surface, borderRadius: 14, borderWidth: 1, borderColor: prudexTheme.colors.border, padding: 12, gap: 10 },
+  snapshotCard: { backgroundColor: prudexTheme.colors.surfaceElevated, borderRadius: 14, borderWidth: 1, borderColor: prudexTheme.colors.borderStrong, padding: 12, gap: 10, ...prudexTheme.shadow.glow },
   snapshotHead: { gap: 2 },
   snapshotValue: { color: prudexTheme.colors.text, fontSize: 24, fontWeight: "800" },
   snapshotDelta: { fontSize: 14, fontWeight: "800", marginTop: 2 },

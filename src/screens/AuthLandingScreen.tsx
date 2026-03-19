@@ -4,6 +4,7 @@ import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 
 import { useAuth } from "@/auth/AuthContext";
+import BrandBackdrop from "@/components/BrandBackdrop";
 import { firebaseConfigReady } from "@/auth/firebase";
 import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme, surfaceCard } from "@/theme/prudex";
@@ -65,6 +66,7 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
 
   return (
     <View style={styles.container}>
+      <BrandBackdrop />
       <View style={styles.heroCard}>
         <BrandLockup variant="hero" showTagline />
         <Text style={styles.title}>Execute with discipline.</Text>
@@ -117,6 +119,7 @@ const styles = StyleSheet.create({
     padding: prudexTheme.spacing.lg,
     gap: prudexTheme.spacing.sm,
     marginBottom: prudexTheme.spacing.sm,
+    ...prudexTheme.shadow.glow,
   },
   title: {
     fontSize: prudexTheme.typography.hero,

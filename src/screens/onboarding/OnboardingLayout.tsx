@@ -1,6 +1,7 @@
 import React, { PropsWithChildren } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import BrandBackdrop from "@/components/BrandBackdrop";
 import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme } from "@/theme/prudex";
 
@@ -36,6 +37,7 @@ export default function OnboardingLayout({
 
   return (
     <View style={styles.screen}>
+      <BrandBackdrop />
       <View style={styles.progressRow}>
         <BrandLockup variant="compact" />
         <Text style={styles.progressLabel}>{`Step ${step} of ${totalSteps}`}</Text>

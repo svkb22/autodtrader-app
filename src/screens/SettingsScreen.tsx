@@ -6,6 +6,7 @@ import Constants from "expo-constants";
 import { getRAnalyticsSummary } from "@/api/client";
 import { RAnalyticsSummary } from "@/api/types";
 import { useAuth } from "@/auth/AuthContext";
+import BrandBackdrop from "@/components/BrandBackdrop";
 import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme, surfaceCard } from "@/theme/prudex";
 
@@ -51,6 +52,7 @@ export default function SettingsScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
+      <BrandBackdrop />
       <View style={styles.brandCard}>
         <BrandLockup variant="header" showTagline />
         <Text style={styles.brandBody}>Operational controls for venue access, risk posture, and system review.</Text>
@@ -110,6 +112,7 @@ const styles = StyleSheet.create({
     backgroundColor: prudexTheme.colors.surfaceElevated,
     padding: 16,
     gap: 8,
+    ...prudexTheme.shadow.glow,
   },
   brandBody: { color: prudexTheme.colors.textMuted, fontSize: 13, lineHeight: 18 },
   version: { color: prudexTheme.colors.textSubtle, fontSize: 12, fontWeight: "600" },

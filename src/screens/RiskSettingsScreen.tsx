@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
 import { getRisk, toApiError, updateRisk } from "@/api/client";
+import BrandBackdrop from "@/components/BrandBackdrop";
 import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme } from "@/theme/prudex";
 
@@ -61,6 +62,7 @@ export default function RiskSettingsScreen({ navigation }: Props): React.JSX.Ele
 
   return (
     <View style={styles.container}>
+      <BrandBackdrop />
       <BrandLockup variant="header" />
       <View style={styles.labelRow}>
         <Text style={styles.label}>Max Daily Loss (USD)</Text>

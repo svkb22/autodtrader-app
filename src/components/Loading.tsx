@@ -1,12 +1,14 @@
 import React from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
+import BrandBackdrop from "@/components/BrandBackdrop";
 import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme } from "@/theme/prudex";
 
 export default function Loading(): React.JSX.Element {
   return (
     <View style={styles.wrap}>
+      <BrandBackdrop />
       <BrandLockup variant="hero" showTagline />
       <ActivityIndicator size="small" color={prudexTheme.colors.primarySoft} />
       <Text style={styles.text}>Preparing system state...</Text>

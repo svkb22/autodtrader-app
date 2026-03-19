@@ -4,6 +4,7 @@ import { NavigationProp, ParamListBase, useNavigation } from "@react-navigation/
 
 import { AutoExecuteStrength, BrokerSettings } from "@/api/types";
 import { getBrokerSettings, toApiError, updateBrokerSettings } from "@/api/client";
+import BrandBackdrop from "@/components/BrandBackdrop";
 import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme } from "@/theme/prudex";
 
@@ -59,6 +60,7 @@ export default function AutoExecuteSettingsScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
+      <BrandBackdrop />
       <BrandLockup variant="header" />
       <View style={styles.row}>
         <View style={styles.rowText}>

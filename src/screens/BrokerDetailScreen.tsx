@@ -7,6 +7,7 @@ import { BrokerStatusResponse, getBrokerStatus } from "@/api/broker";
 import { activateSystem, alpacaDisconnect, getBrokerAccount, toApiError } from "@/api/client";
 import { BrokerAccount } from "@/api/types";
 import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
+import BrandBackdrop from "@/components/BrandBackdrop";
 import BrandLockup from "@/components/BrandLockup";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { BrokerMode, getActiveBrokerMode, setActiveBrokerMode } from "@/storage/brokerMode";
@@ -154,6 +155,7 @@ export default function BrokerDetailScreen({ navigation }: Props): React.JSX.Ele
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      <BrandBackdrop />
       <BrandLockup variant="header" />
       <View style={styles.headerRow}>
         <AlpacaLogoBadge size={52} />

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "@/auth/AuthContext";
+import BrandBackdrop from "@/components/BrandBackdrop";
 import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme } from "@/theme/prudex";
 
@@ -59,6 +60,7 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
 
   return (
     <View style={styles.container}>
+      <BrandBackdrop />
       <View style={styles.brandWrap}>
         <BrandLockup variant="header" />
       </View>
