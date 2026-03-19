@@ -1,6 +1,8 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { prudexTheme } from "@/theme/prudex";
+
 type Props = {
   message: string;
   onRetry?: () => void;
@@ -21,21 +23,26 @@ export default function ErrorState({ message, onRetry }: Props): React.JSX.Eleme
 
 const styles = StyleSheet.create({
   wrap: {
-    padding: 16,
+    padding: prudexTheme.spacing.md,
     alignItems: "center",
-    gap: 12,
+    gap: prudexTheme.spacing.sm,
+    borderRadius: prudexTheme.radius.md,
+    borderWidth: 1,
+    borderColor: prudexTheme.colors.border,
+    backgroundColor: prudexTheme.colors.surface,
   },
   text: {
-    color: "#b91c1c",
+    color: prudexTheme.colors.textMuted,
+    textAlign: "center",
   },
   button: {
-    backgroundColor: "#111827",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: prudexTheme.colors.primary,
+    paddingHorizontal: prudexTheme.spacing.sm,
+    paddingVertical: prudexTheme.spacing.xs,
+    borderRadius: prudexTheme.radius.sm,
   },
   buttonText: {
-    color: "white",
+    color: prudexTheme.colors.white,
     fontWeight: "600",
   },
 });

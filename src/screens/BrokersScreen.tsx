@@ -7,6 +7,7 @@ import { toApiError } from "@/api/client";
 import AlpacaLogoBadge from "@/components/AlpacaLogoBadge";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { BrokerMode, getActiveBrokerMode } from "@/storage/brokerMode";
+import { prudexTheme, surfaceCard } from "@/theme/prudex";
 
 type Props = {
   navigation: { navigate: (route: "BrokerDetail") => void };
@@ -68,8 +69,8 @@ export default function BrokersScreen({ navigation }: Props): React.JSX.Element 
     >
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.title}>Brokers</Text>
-          <Text style={styles.headerMeta}>Alpaca slots: one Paper + one Live</Text>
+          <Text style={styles.title}>Execution venues</Text>
+          <Text style={styles.headerMeta}>Venue status and active routing mode.</Text>
         </View>
       </View>
 
@@ -78,7 +79,7 @@ export default function BrokersScreen({ navigation }: Props): React.JSX.Element 
         <View style={[styles.statusDot, anyConnected ? styles.dotGreen : styles.dotGray]} />
         <View style={styles.info}>
           <Text style={styles.name}>Alpaca</Text>
-          {loading ? <ActivityIndicator size="small" color="#64748b" /> : <Text style={styles.subtitle}>Active mode: {activeMode === "live" ? "Live" : "Paper"}</Text>}
+          {loading ? <ActivityIndicator size="small" color={prudexTheme.colors.textSubtle} /> : <Text style={styles.subtitle}>Active mode: {activeMode === "live" ? "Live" : "Paper"}</Text>}
           {!loading ? (
             <Text style={styles.slotLine}>
               Paper: {paperConnected ? "Connected" : "Connect"}
@@ -91,47 +92,41 @@ export default function BrokersScreen({ navigation }: Props): React.JSX.Element 
       </Pressable>
 
       <View style={styles.noteCard}>
-        <Text style={styles.noteTitle}>Connection Limit</Text>
-        <Text style={styles.noteText}>Single paper account supported currently.</Text>
-        {ENABLE_LIVE_BROKER ? <Text style={styles.noteText}>Single live account supported currently.</Text> : null}
+        <Text style={styles.noteTitle}>Venue capacity</Text>
+        <Text style={styles.noteText}>One paper account can be attached at a time.</Text>
+        {ENABLE_LIVE_BROKER ? <Text style={styles.noteText}>One live account can be attached at a time.</Text> : null}
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1, backgroundColor: prudexTheme.colors.bg },
   content: { padding: 16, gap: 14 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { fontSize: 24, fontWeight: "700", color: "#0f172a" },
-  headerMeta: { color: "#64748b", marginTop: 2 },
+  title: { fontSize: 24, fontWeight: "700", color: prudexTheme.colors.text },
+  headerMeta: { color: prudexTheme.colors.textSubtle, marginTop: 2 },
   card: {
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 14,
+    ...surfaceCard,
     padding: 16,
     flexDirection: "row",
     gap: 12,
     alignItems: "center",
   },
   statusDot: { width: 12, height: 12, borderRadius: 6, marginTop: 2 },
-  dotGreen: { backgroundColor: "#16a34a" },
-  dotGray: { backgroundColor: "#94a3b8" },
+  dotGreen: { backgroundColor: prudexTheme.colors.positive },
+  dotGray: { backgroundColor: prudexTheme.colors.textSubtle },
   info: { flex: 1, gap: 4 },
-  name: { fontSize: 20, fontWeight: "600", color: "#0f172a" },
-  subtitle: { color: "#475569", fontSize: 14 },
-  slotLine: { color: "#334155", fontSize: 13 },
-  error: { color: "#b91c1c", fontSize: 12 },
-  chevron: { color: "#94a3b8", fontSize: 22, lineHeight: 22 },
+  name: { fontSize: 20, fontWeight: "600", color: prudexTheme.colors.text },
+  subtitle: { color: prudexTheme.colors.textMuted, fontSize: 14 },
+  slotLine: { color: prudexTheme.colors.textSubtle, fontSize: 13 },
+  error: { color: prudexTheme.colors.negative, fontSize: 12 },
+  chevron: { color: prudexTheme.colors.textSubtle, fontSize: 22, lineHeight: 22 },
   noteCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#ffffff",
+    ...surfaceCard,
     padding: 12,
     gap: 2,
   },
-  noteTitle: { color: "#0f172a", fontWeight: "700", fontSize: 13 },
-  noteText: { color: "#64748b", fontSize: 12 },
+  noteTitle: { color: prudexTheme.colors.text, fontWeight: "700", fontSize: 13 },
+  noteText: { color: prudexTheme.colors.textSubtle, fontSize: 12 },
 });

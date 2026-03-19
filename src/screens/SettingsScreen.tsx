@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { NavigationProp, ParamListBase, useNavigation } from "@react-navigation/native";
+import Constants from "expo-constants";
 
 import { getRAnalyticsSummary } from "@/api/client";
 import { RAnalyticsSummary } from "@/api/types";
 import { useAuth } from "@/auth/AuthContext";
+import BrandLockup from "@/components/BrandLockup";
+import { prudexTheme, surfaceCard } from "@/theme/prudex";
 
 export default function SettingsScreen(): React.JSX.Element {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
@@ -48,13 +51,17 @@ export default function SettingsScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
+      <View style={styles.brandCard}>
+        <BrandLockup variant="header" showTagline />
+        <Text style={styles.brandBody}>Operational controls for venue access, risk posture, and system review.</Text>
+        <Text style={styles.version}>Version {Constants.expoConfig?.version ?? "0.1.0"}</Text>
+      </View>
 
       <Text style={styles.sectionLabel}>Broker</Text>
       <Pressable style={styles.cardButton} onPress={() => navigation.navigate("Brokers")}>
         <View>
-          <Text style={styles.cardTitle}>Brokers</Text>
-          <Text style={styles.cardSubtitle}>Active connections, add new, and manage broker-level settings.</Text>
+          <Text style={styles.cardTitle}>Execution venues</Text>
+          <Text style={styles.cardSubtitle}>Active connections, routing state, and broker configuration.</Text>
         </View>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
@@ -97,54 +104,52 @@ export default function SettingsScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc", padding: 16, gap: 12 },
-  title: { fontSize: 24, fontWeight: "800", color: "#0f172a", marginBottom: 4 },
-  sectionLabel: { color: "#334155", fontWeight: "600" },
+  container: { flex: 1, backgroundColor: prudexTheme.colors.bg, padding: 16, gap: 12 },
+  brandCard: {
+    ...surfaceCard,
+    backgroundColor: prudexTheme.colors.surfaceElevated,
+    padding: 16,
+    gap: 8,
+  },
+  brandBody: { color: prudexTheme.colors.textMuted, fontSize: 13, lineHeight: 18 },
+  version: { color: prudexTheme.colors.textSubtle, fontSize: 12, fontWeight: "600" },
+  sectionLabel: { color: prudexTheme.colors.textSubtle, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8 },
   cardButton: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "white",
+    ...surfaceCard,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
   },
-  cardTitle: { color: "#0f172a", fontWeight: "700", fontSize: 16 },
-  cardSubtitle: { color: "#64748b", marginTop: 3, fontSize: 13 },
-  chevron: { color: "#94a3b8", fontSize: 22, lineHeight: 22 },
+  cardTitle: { color: prudexTheme.colors.text, fontWeight: "700", fontSize: 16 },
+  cardSubtitle: { color: prudexTheme.colors.textSubtle, marginTop: 3, fontSize: 13 },
+  chevron: { color: prudexTheme.colors.textSubtle, fontSize: 22, lineHeight: 22 },
   debugCard: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "white",
+    ...surfaceCard,
     padding: 12,
     gap: 4,
   },
-  debugLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  debugValue: { color: "#0f172a", fontSize: 12, fontFamily: Platform.select({ ios: "Menlo", default: "monospace" }) },
+  debugLabel: { color: prudexTheme.colors.textSubtle, fontSize: 12, fontWeight: "600" },
+  debugValue: { color: prudexTheme.colors.text, fontSize: 12, fontFamily: Platform.select({ ios: "Menlo", default: "monospace" }) },
   logoutButton: {
     marginTop: 2,
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderWidth: 1,
-    borderColor: "#fecaca",
+    borderColor: "#5E2B2B",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
   },
-  logoutText: { color: "#b91c1c", fontWeight: "700" },
+  logoutText: { color: prudexTheme.colors.negative, fontWeight: "700" },
   disabled: { opacity: 0.6 },
   metricsCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "white",
+    ...surfaceCard,
     padding: 12,
     gap: 6,
   },
-  metricLine: { color: "#0f172a", fontSize: 13, fontWeight: "600" },
-  tierRow: { marginTop: 2, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#f1f5f9", gap: 2 },
-  tierTitle: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  tierValue: { color: "#0f172a", fontSize: 12, fontWeight: "700" },
+  metricLine: { color: prudexTheme.colors.textMuted, fontSize: 13, fontWeight: "600" },
+  tierRow: { marginTop: 2, paddingTop: 6, borderTopWidth: 1, borderTopColor: prudexTheme.colors.border, gap: 2 },
+  tierTitle: { color: prudexTheme.colors.textSubtle, fontSize: 12, fontWeight: "600" },
+  tierValue: { color: prudexTheme.colors.text, fontSize: 12, fontWeight: "700" },
 });

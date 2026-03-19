@@ -1,0 +1,66 @@
+export const prudexTheme = {
+  colors: {
+    bg: "#0B1F2A",
+    bgAlt: "#121820",
+    surface: "#121820",
+    surfaceElevated: "#16222D",
+    surfaceMuted: "#10171E",
+    card: "#111315",
+    border: "#22303A",
+    borderStrong: "#2D414D",
+    text: "#F7F7F7",
+    textMuted: "#D9DEE3",
+    textSubtle: "#7E8A93",
+    primary: "#2C7A7B",
+    primarySoft: "#4FB3B3",
+    gold: "#CFAF6E",
+    positive: "#4BA89A",
+    negative: "#C76666",
+    warning: "#B89456",
+    info: "#7E98AA",
+    white: "#F7F7F7",
+    black: "#111315",
+    overlay: "rgba(11, 31, 42, 0.72)",
+  },
+  spacing: {
+    xxs: 4,
+    xs: 8,
+    sm: 12,
+    md: 16,
+    lg: 20,
+    xl: 24,
+    xxl: 32,
+  },
+  radius: {
+    sm: 12,
+    md: 16,
+    lg: 20,
+    pill: 999,
+  },
+  typography: {
+    eyebrow: 12,
+    body: 14,
+    bodyLg: 15,
+    titleSm: 18,
+    title: 24,
+    hero: 34,
+    metric: 28,
+  },
+  shadow: {
+    card: {
+      shadowColor: "#000000",
+      shadowOpacity: 0.24,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 8,
+    },
+  },
+} as const;
+
+export const surfaceCard = {
+  backgroundColor: prudexTheme.colors.surface,
+  borderWidth: 1,
+  borderColor: prudexTheme.colors.border,
+  borderRadius: prudexTheme.radius.md,
+};
+

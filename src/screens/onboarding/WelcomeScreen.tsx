@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { track } from "@/analytics/track";
 import OnboardingLayout from "@/screens/onboarding/OnboardingLayout";
+import { prudexTheme } from "@/theme/prudex";
 
 type Props = {
   navigation: { navigate: (route: "HowItWorks" | "ConnectBroker") => void };
@@ -18,8 +19,8 @@ export default function WelcomeScreen({ navigation }: Props): React.JSX.Element 
     <OnboardingLayout
       step={1}
       totalSteps={7}
-      title="Welcome"
-      subtitle="Auto Day-Trader is a disciplined, low-frequency system for structured side income."
+      title="Welcome to Prudex"
+      subtitle="Prudex is a disciplined execution system for structured market participation."
       primaryLabel="Continue"
       onPrimary={() => {
         track("onboarding_step_completed", { step: "welcome" });
@@ -29,9 +30,9 @@ export default function WelcomeScreen({ navigation }: Props): React.JSX.Element 
       onTertiary={() => navigation.navigate("ConnectBroker")}
     >
       <View style={styles.card}>
-        <Text style={styles.bullet}>0-1 trades per day</Text>
-        <Text style={styles.bullet}>Strict risk guardrails</Text>
-        <Text style={styles.bullet}>You stay in control</Text>
+        <Text style={styles.bullet}>Qualified setups only</Text>
+        <Text style={styles.bullet}>Risk-defined entries and exits</Text>
+        <Text style={styles.bullet}>Execution aligned with your limits</Text>
       </View>
     </OnboardingLayout>
   );
@@ -41,14 +42,14 @@ const styles = StyleSheet.create({
   card: {
     marginTop: 8,
     borderRadius: 18,
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.border,
     padding: 16,
     gap: 10,
   },
   bullet: {
-    color: "#0f172a",
+    color: prudexTheme.colors.textMuted,
     fontSize: 15,
   },
 });

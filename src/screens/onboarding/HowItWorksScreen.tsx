@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { track } from "@/analytics/track";
 import OnboardingLayout from "@/screens/onboarding/OnboardingLayout";
+import { prudexTheme } from "@/theme/prudex";
 
 type Props = {
   navigation: { goBack: () => void; navigate: (route: "ConnectBroker") => void };
@@ -10,8 +11,8 @@ type Props = {
 
 const steps = [
   "Scan liquid stocks",
-  "Detect high-quality setup",
-  "You approve (or auto-approve)",
+  "Qualify setup quality",
+  "Approve or automate within guardrails",
   "Risk limits enforced",
   "Positions closed intraday",
 ];
@@ -25,7 +26,8 @@ export default function HowItWorksScreen({ navigation }: Props): React.JSX.Eleme
     <OnboardingLayout
       step={2}
       totalSteps={7}
-      title="How it works"
+      title="System workflow"
+      subtitle="Prudex routes setups through one clear execution process."
       primaryLabel="Continue"
       onPrimary={() => {
         track("onboarding_step_completed", { step: "how_it_works" });
@@ -53,9 +55,9 @@ export default function HowItWorksScreen({ navigation }: Props): React.JSX.Eleme
 const styles = StyleSheet.create({
   card: {
     borderRadius: 18,
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.border,
     padding: 16,
     gap: 12,
   },
@@ -68,17 +70,17 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: prudexTheme.colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
   badgeText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0f172a",
+    color: prudexTheme.colors.text,
   },
   item: {
-    color: "#0f172a",
+    color: prudexTheme.colors.textMuted,
     fontSize: 15,
   },
 });

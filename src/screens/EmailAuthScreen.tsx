@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "@/auth/AuthContext";
+import BrandLockup from "@/components/BrandLockup";
+import { prudexTheme } from "@/theme/prudex";
 
 type Props = {
   navigation: { navigate: (route: "ForgotPassword") => void; goBack: () => void };
@@ -57,7 +59,11 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Email Authentication</Text>
+      <View style={styles.brandWrap}>
+        <BrandLockup variant="header" />
+      </View>
+      <Text style={styles.title}>Secure access</Text>
+      <Text style={styles.subtitle}>Use email credentials to access your Prudex workspace.</Text>
 
       <View style={styles.segment}>
         <Pressable
@@ -65,7 +71,7 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
           style={[styles.segmentItem, mode === "signup" && styles.segmentItemActive]}
           onPress={() => setMode("signup")}
         >
-          <Text style={[styles.segmentText, mode === "signup" && styles.segmentTextActive]}>Sign Up</Text>
+          <Text style={[styles.segmentText, mode === "signup" && styles.segmentTextActive]}>Create</Text>
         </Pressable>
         <Pressable
           accessibilityLabel="Sign in tab"
@@ -80,6 +86,7 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
         accessibilityLabel="Email"
         style={styles.input}
         placeholder="Email"
+        placeholderTextColor={prudexTheme.colors.textSubtle}
         keyboardType="email-address"
         autoCapitalize="none"
         value={email}
@@ -89,6 +96,7 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
         accessibilityLabel="Password"
         style={styles.input}
         placeholder="Password"
+        placeholderTextColor={prudexTheme.colors.textSubtle}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -98,6 +106,7 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
           accessibilityLabel="Confirm password"
           style={styles.input}
           placeholder="Confirm Password"
+          placeholderTextColor={prudexTheme.colors.textSubtle}
           secureTextEntry
           value={confirmPassword}
           onChangeText={setConfirmPassword}
@@ -127,23 +136,29 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: prudexTheme.colors.bg,
     justifyContent: "center",
-    padding: 20,
-    gap: 10,
+    padding: prudexTheme.spacing.lg,
+    gap: prudexTheme.spacing.sm,
+  },
+  brandWrap: {
+    marginBottom: prudexTheme.spacing.xs,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#0f172a",
-    marginBottom: 4,
+    fontSize: prudexTheme.typography.title,
+    fontWeight: "700",
+    color: prudexTheme.colors.text,
+  },
+  subtitle: {
+    color: prudexTheme.colors.textMuted,
+    marginBottom: prudexTheme.spacing.xs,
   },
   segment: {
     flexDirection: "row",
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 12,
-    backgroundColor: "white",
+    borderColor: prudexTheme.colors.border,
+    borderRadius: prudexTheme.radius.sm,
+    backgroundColor: prudexTheme.colors.surface,
     overflow: "hidden",
   },
   segmentItem: {
@@ -153,46 +168,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   segmentItemActive: {
-    backgroundColor: "#0f172a",
+    backgroundColor: prudexTheme.colors.primary,
   },
-  segmentText: { color: "#334155", fontWeight: "600" },
-  segmentTextActive: { color: "white" },
+  segmentText: { color: prudexTheme.colors.textSubtle, fontWeight: "600" },
+  segmentTextActive: { color: prudexTheme.colors.white },
   input: {
     minHeight: 46,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 12,
-    backgroundColor: "white",
-    paddingHorizontal: 12,
+    borderColor: prudexTheme.colors.border,
+    borderRadius: prudexTheme.radius.sm,
+    backgroundColor: prudexTheme.colors.surface,
+    paddingHorizontal: prudexTheme.spacing.sm,
+    color: prudexTheme.colors.text,
   },
   primaryButton: {
     minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: "#0f172a",
+    borderRadius: prudexTheme.radius.sm,
+    backgroundColor: prudexTheme.colors.primary,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
   },
   primaryText: {
-    color: "white",
-    fontWeight: "600",
+    color: prudexTheme.colors.white,
+    fontWeight: "700",
     fontSize: 15,
   },
   secondaryButton: {
     minHeight: 46,
-    borderRadius: 12,
+    borderRadius: prudexTheme.radius.sm,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    backgroundColor: "white",
+    borderColor: prudexTheme.colors.border,
+    backgroundColor: prudexTheme.colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
   secondaryText: {
-    color: "#0f172a",
+    color: prudexTheme.colors.textMuted,
     fontWeight: "600",
   },
   linkButton: { minHeight: 36, alignItems: "center", justifyContent: "center" },
-  linkText: { color: "#0f172a", fontWeight: "500", textDecorationLine: "underline" },
-  info: { color: "#0f766e", textAlign: "center", fontSize: 13 },
-  error: { color: "#b91c1c", textAlign: "center", fontSize: 13 },
+  linkText: { color: prudexTheme.colors.primarySoft, fontWeight: "500", textDecorationLine: "underline" },
+  info: { color: prudexTheme.colors.positive, textAlign: "center", fontSize: 13 },
+  error: { color: prudexTheme.colors.negative, textAlign: "center", fontSize: 13 },
 });

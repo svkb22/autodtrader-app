@@ -1,6 +1,9 @@
 import React, { PropsWithChildren } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import BrandLockup from "@/components/BrandLockup";
+import { prudexTheme } from "@/theme/prudex";
+
 type Props = PropsWithChildren<{
   step: number;
   totalSteps: number;
@@ -34,6 +37,7 @@ export default function OnboardingLayout({
   return (
     <View style={styles.screen}>
       <View style={styles.progressRow}>
+        <BrandLockup variant="compact" />
         <Text style={styles.progressLabel}>{`Step ${step} of ${totalSteps}`}</Text>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
@@ -73,51 +77,51 @@ export default function OnboardingLayout({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: prudexTheme.colors.bg,
   },
   progressRow: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
+    paddingTop: prudexTheme.spacing.md,
+    paddingHorizontal: prudexTheme.spacing.md,
     gap: 8,
   },
   progressLabel: {
     fontSize: 12,
-    color: "#64748b",
+    color: prudexTheme.colors.textSubtle,
     fontWeight: "600",
   },
   progressTrack: {
     height: 6,
     borderRadius: 999,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: prudexTheme.colors.border,
     overflow: "hidden",
   },
   progressFill: {
     height: 6,
-    backgroundColor: "#0f172a",
+    backgroundColor: prudexTheme.colors.primarySoft,
   },
   scrollContent: {
-    padding: 16,
+    padding: prudexTheme.spacing.md,
     gap: 12,
   },
   title: {
     fontSize: 24,
     lineHeight: 30,
     fontWeight: "600",
-    color: "#0f172a",
+    color: prudexTheme.colors.text,
   },
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
-    color: "#475569",
+    color: prudexTheme.colors.textMuted,
   },
   footer: {
-    padding: 16,
+    padding: prudexTheme.spacing.md,
     gap: 10,
   },
   primaryButton: {
     minHeight: 48,
-    borderRadius: 14,
-    backgroundColor: "#0f172a",
+    borderRadius: prudexTheme.radius.md,
+    backgroundColor: prudexTheme.colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -125,21 +129,21 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   primaryButtonText: {
-    color: "white",
+    color: prudexTheme.colors.white,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   secondaryButton: {
     minHeight: 46,
-    borderRadius: 14,
+    borderRadius: prudexTheme.radius.md,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: prudexTheme.colors.border,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
   },
   secondaryButtonText: {
-    color: "#0f172a",
+    color: prudexTheme.colors.textMuted,
     fontSize: 15,
     fontWeight: "600",
   },
@@ -149,7 +153,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   tertiaryButtonText: {
-    color: "#475569",
+    color: prudexTheme.colors.textSubtle,
     fontSize: 13,
     fontWeight: "600",
   },

@@ -17,8 +17,10 @@ import {
   toApiError,
 } from "@/api/client";
 import { ActivityItem, EquityCurvePoint, ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile, TradingWindowStatus } from "@/api/types";
+import BrandLockup from "@/components/BrandLockup";
 import Countdown from "@/components/Countdown";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
+import { prudexTheme } from "@/theme/prudex";
 import { usd } from "@/utils/format";
 import { isExpired } from "@/utils/time";
 
@@ -387,9 +389,12 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
     >
+      <View style={styles.brandRow}>
+        <BrandLockup variant="header" showTagline />
+      </View>
       <View style={styles.statusStrip}>
         <View style={styles.statusStripLeft}>
-          <Text style={styles.statusStripText}>{`Mode: Alpaca • ${mode === "live" ? "Live" : "Paper"}`}</Text>
+          <Text style={styles.statusStripText}>{`Venue: Alpaca • ${mode === "live" ? "Live execution" : "Paper execution"}`}</Text>
           <Text style={styles.statusStripSubtext}>{`Device Timezone: ${deviceTimezoneLabel()}`}</Text>
         </View>
         <View style={styles.statusStripBadges}>
@@ -403,7 +408,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       </View>
 
       <View style={styles.sectionWrap}>
-        <Text style={styles.sectionTitle}>Action Required</Text>
+        <Text style={styles.sectionTitle}>Action required</Text>
         {actionWidgetLoading ? (
           <View style={styles.loadingCard}>
             <ActivityIndicator size="small" color="#64748b" />
@@ -416,7 +421,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
         ) : (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>BUY {proposal.symbol}</Text>
-            <Text style={styles.row}>Recommendation: {recommendationText(proposal.strength)}</Text>
+            <Text style={styles.row}>Setup quality: {recommendationText(proposal.strength)}</Text>
             <Text style={styles.row}>Entry: {usd(proposal.entry.limit_price)} • Qty {proposal.qty}</Text>
             <Text style={styles.row}>Risk {usd(riskUsd)} • Capital {(proposal.capital_used_pct * 100).toFixed(2)}%</Text>
 
@@ -436,7 +441,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
       </View>
 
       <View style={styles.sectionWrap}>
-        <Text style={styles.sectionTitle}>Live Snapshot</Text>
+        <Text style={styles.sectionTitle}>Live snapshot</Text>
         <View style={styles.snapshotCard}>
           {snapshotWidgetLoading ? (
             <View style={styles.loadingCard}>
@@ -452,7 +457,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
                 </Text>
                 <Text style={styles.snapshotMeta}>
                   {activeSparkIndex == null
-                    ? `Allocated ${usd(allocatedCapital)} • Account Equity ${usd(equity)} • Buying Power ${usd(buyingPower)}`
+                    ? `Allocated ${usd(allocatedCapital)} • Account equity ${usd(equity)} • Buying power ${usd(buyingPower)}`
                     : selectedSparkLabel}
                 </Text>
               </View>
@@ -536,7 +541,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
             <View style={styles.todayGrid}>
               <View style={styles.metricCard}>
                 <View style={styles.metricHeader}>
-                  <Text style={styles.metricLabel}>Executed Today</Text>
+                  <Text style={styles.metricLabel}>Executed</Text>
                   <Pressable
                     onPress={() => onInfoPress("executed", "Executed Today")}
                     onHoverIn={() => setHoveredTooltip("executed")}
@@ -580,7 +585,7 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
 
             <View style={styles.tableCard}>
               <View style={styles.tableHeaderRow}>
-                <Text style={styles.tableTitle}>Today Positions</Text>
+                <Text style={styles.tableTitle}>Today exposure</Text>
                 <View style={styles.pillRow}>
                   {(["all", "open", "closed"] as PositionStateFilter[]).map((filter) => (
                     <Pressable key={filter} style={[styles.pill, positionFilter === filter && styles.pillActive]} onPress={() => setPositionFilter(filter)}>
@@ -629,13 +634,14 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1, backgroundColor: prudexTheme.colors.bg },
   content: { padding: 16, gap: 14, paddingBottom: 24 },
+  brandRow: { marginBottom: 2 },
   statusStrip: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#ffffff",
+    borderColor: prudexTheme.colors.border,
+    backgroundColor: prudexTheme.colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: "row",
@@ -644,77 +650,77 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   statusStripLeft: { flex: 1, gap: 2 },
-  statusStripSubtext: { color: "#475569", fontSize: 11, fontWeight: "600" },
+  statusStripSubtext: { color: prudexTheme.colors.textSubtle, fontSize: 11, fontWeight: "600" },
   statusStripBadges: { flexDirection: "row", alignItems: "center", gap: 6 },
-  statusStripText: { color: "#334155", fontSize: 12, fontWeight: "700" },
+  statusStripText: { color: prudexTheme.colors.textMuted, fontSize: 12, fontWeight: "700" },
   statusStripBadge: { fontSize: 11, fontWeight: "800", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, overflow: "hidden" },
-  activeBadge: { color: "#166534", backgroundColor: "#dcfce7" },
-  pausedBadge: { color: "#64748b", backgroundColor: "#e2e8f0" },
-  windowOpenBadge: { color: "#0f766e", backgroundColor: "#ccfbf1" },
-  windowClosedBadge: { color: "#7c2d12", backgroundColor: "#ffedd5" },
+  activeBadge: { color: prudexTheme.colors.white, backgroundColor: prudexTheme.colors.primary },
+  pausedBadge: { color: prudexTheme.colors.textMuted, backgroundColor: prudexTheme.colors.border },
+  windowOpenBadge: { color: prudexTheme.colors.white, backgroundColor: prudexTheme.colors.positive },
+  windowClosedBadge: { color: prudexTheme.colors.white, backgroundColor: prudexTheme.colors.warning },
   sectionWrap: { gap: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
-  emptyCard: { borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 12 },
-  loadingCard: { borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 12, flexDirection: "row", alignItems: "center", gap: 8 },
-  loadingText: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  emptyText: { color: "#64748b" },
-  card: { backgroundColor: "white", borderRadius: 14, borderColor: "#e2e8f0", borderWidth: 1, padding: 14, gap: 8 },
-  cardTitle: { color: "#0f172a", fontSize: 28, fontWeight: "800" },
-  row: { color: "#1f2937", fontWeight: "600" },
-  label: { color: "#334155", fontWeight: "600", marginTop: 2 },
-  statusText: { color: "#b91c1c", fontWeight: "700" },
-  actionButton: { height: 48, borderRadius: 10, backgroundColor: "#166534", alignItems: "center", justifyContent: "center", marginTop: 4 },
-  rejectButton: { height: 46, borderRadius: 10, backgroundColor: "#b91c1c", alignItems: "center", justifyContent: "center" },
-  actionButtonText: { color: "white", fontWeight: "700" },
+  sectionTitle: { fontSize: 18, fontWeight: "800", color: prudexTheme.colors.text },
+  emptyCard: { borderRadius: 12, borderWidth: 1, borderColor: prudexTheme.colors.border, backgroundColor: prudexTheme.colors.surface, padding: 12 },
+  loadingCard: { borderRadius: 12, borderWidth: 1, borderColor: prudexTheme.colors.border, backgroundColor: prudexTheme.colors.surface, padding: 12, flexDirection: "row", alignItems: "center", gap: 8 },
+  loadingText: { color: prudexTheme.colors.textSubtle, fontSize: 12, fontWeight: "600" },
+  emptyText: { color: prudexTheme.colors.textSubtle },
+  card: { backgroundColor: prudexTheme.colors.surface, borderRadius: 14, borderColor: prudexTheme.colors.border, borderWidth: 1, padding: 14, gap: 8 },
+  cardTitle: { color: prudexTheme.colors.text, fontSize: 28, fontWeight: "800" },
+  row: { color: prudexTheme.colors.textMuted, fontWeight: "600" },
+  label: { color: prudexTheme.colors.textSubtle, fontWeight: "600", marginTop: 2 },
+  statusText: { color: prudexTheme.colors.negative, fontWeight: "700" },
+  actionButton: { height: 48, borderRadius: 10, backgroundColor: prudexTheme.colors.primary, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  rejectButton: { height: 46, borderRadius: 10, backgroundColor: prudexTheme.colors.negative, alignItems: "center", justifyContent: "center" },
+  actionButtonText: { color: prudexTheme.colors.white, fontWeight: "700" },
   disabled: { opacity: 0.5 },
-  snapshotCard: { backgroundColor: "white", borderRadius: 14, borderWidth: 1, borderColor: "#e2e8f0", padding: 12, gap: 10 },
+  snapshotCard: { backgroundColor: prudexTheme.colors.surface, borderRadius: 14, borderWidth: 1, borderColor: prudexTheme.colors.border, padding: 12, gap: 10 },
   snapshotHead: { gap: 2 },
-  snapshotValue: { color: "#0f172a", fontSize: 24, fontWeight: "800" },
+  snapshotValue: { color: prudexTheme.colors.text, fontSize: 24, fontWeight: "800" },
   snapshotDelta: { fontSize: 14, fontWeight: "800", marginTop: 2 },
-  snapshotMeta: { color: "#475569", fontSize: 12, fontWeight: "600" },
-  sparkWrap: { height: 180, borderRadius: 8, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", position: "relative", overflow: "hidden" },
-  sparkSegment: { position: "absolute", height: 2, backgroundColor: "#22c55e", borderRadius: 2 },
-  sparkBaseline: { position: "absolute", left: 0, right: 0, borderTopWidth: 1, borderTopColor: "#94a3b8", borderStyle: "dashed" },
-  sparkEndDot: { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e" },
-  sparkCrosshair: { position: "absolute", top: 0, bottom: 0, width: 1, backgroundColor: "#0f172a22" },
-  sparkActiveDot: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: "#22c55e", borderWidth: 2, borderColor: "#ffffff" },
+  snapshotMeta: { color: prudexTheme.colors.textSubtle, fontSize: 12, fontWeight: "600" },
+  sparkWrap: { height: 180, borderRadius: 8, backgroundColor: prudexTheme.colors.bgAlt, borderWidth: 1, borderColor: prudexTheme.colors.border, position: "relative", overflow: "hidden" },
+  sparkSegment: { position: "absolute", height: 2, backgroundColor: prudexTheme.colors.primarySoft, borderRadius: 2 },
+  sparkBaseline: { position: "absolute", left: 0, right: 0, borderTopWidth: 1, borderTopColor: prudexTheme.colors.borderStrong, borderStyle: "dashed" },
+  sparkEndDot: { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: prudexTheme.colors.primarySoft },
+  sparkCrosshair: { position: "absolute", top: 0, bottom: 0, width: 1, backgroundColor: "rgba(79, 179, 179, 0.28)" },
+  sparkActiveDot: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: prudexTheme.colors.primarySoft, borderWidth: 2, borderColor: prudexTheme.colors.bg },
   sparkTooltip: {
     position: "absolute",
     minWidth: 96,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#0f172a",
+    backgroundColor: prudexTheme.colors.bg,
     alignItems: "center",
   },
-  sparkTooltipText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
-  sparkHint: { position: "absolute", left: 10, bottom: 8, color: "#64748b", fontSize: 11, fontWeight: "600" },
+  sparkTooltipText: { color: prudexTheme.colors.white, fontSize: 12, fontWeight: "700" },
+  sparkHint: { position: "absolute", left: 10, bottom: 8, color: prudexTheme.colors.textSubtle, fontSize: 11, fontWeight: "600" },
   pillRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: "#e2e8f0" },
-  pillActive: { backgroundColor: "#0f172a" },
-  pillText: { color: "#334155", fontWeight: "700", fontSize: 12 },
-  pillTextActive: { color: "#ffffff" },
+  pill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: prudexTheme.colors.border },
+  pillActive: { backgroundColor: prudexTheme.colors.primary },
+  pillText: { color: prudexTheme.colors.textMuted, fontWeight: "700", fontSize: 12 },
+  pillTextActive: { color: prudexTheme.colors.white },
   todayGrid: { flexDirection: "row", gap: 8 },
-  metricCard: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 10, gap: 2 },
+  metricCard: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: prudexTheme.colors.border, backgroundColor: prudexTheme.colors.surface, padding: 10, gap: 2 },
   metricHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  infoIcon: { width: 16, height: 16, borderRadius: 8, textAlign: "center", fontSize: 11, lineHeight: 16, fontWeight: "700", backgroundColor: "#e2e8f0", color: "#334155" },
-  metricLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  metricValue: { color: "#0f172a", fontSize: 22, fontWeight: "800" },
-  tooltipText: { color: "#475569", fontSize: 11, fontWeight: "600", marginTop: 4 },
-  tableCard: { borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", backgroundColor: "white", padding: 10, gap: 8 },
+  infoIcon: { width: 16, height: 16, borderRadius: 8, textAlign: "center", fontSize: 11, lineHeight: 16, fontWeight: "700", backgroundColor: prudexTheme.colors.border, color: prudexTheme.colors.textMuted },
+  metricLabel: { color: prudexTheme.colors.textSubtle, fontSize: 12, fontWeight: "600" },
+  metricValue: { color: prudexTheme.colors.text, fontSize: 22, fontWeight: "800" },
+  tooltipText: { color: prudexTheme.colors.textMuted, fontSize: 11, fontWeight: "600", marginTop: 4 },
+  tableCard: { borderRadius: 12, borderWidth: 1, borderColor: prudexTheme.colors.border, backgroundColor: prudexTheme.colors.surface, padding: 10, gap: 8 },
   tableHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  tableTitle: { color: "#0f172a", fontWeight: "700", fontSize: 14 },
-  tableHeadCols: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#f1f5f9", paddingBottom: 6 },
-  tableRow: { flexDirection: "row", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "#f8fafc" },
-  tableCol: { fontSize: 12, color: "#334155", fontWeight: "600" },
+  tableTitle: { color: prudexTheme.colors.text, fontWeight: "700", fontSize: 14 },
+  tableHeadCols: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: prudexTheme.colors.border, paddingBottom: 6 },
+  tableRow: { flexDirection: "row", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: prudexTheme.colors.bgAlt },
+  tableCol: { fontSize: 12, color: prudexTheme.colors.textMuted, fontWeight: "600" },
   colSymbol: { flex: 1.3 },
   colState: { flex: 1, textAlign: "center" },
   colPnl: { flex: 1, textAlign: "right" },
-  openState: { color: "#1d4ed8" },
-  closedState: { color: "#166534" },
-  posPnl: { color: "#166534" },
-  negPnl: { color: "#b91c1c" },
-  result: { backgroundColor: "white", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, padding: 12, gap: 6 },
-  resultTitle: { fontWeight: "700" },
-  error: { color: "#b91c1c", fontSize: 13 },
+  openState: { color: prudexTheme.colors.info },
+  closedState: { color: prudexTheme.colors.positive },
+  posPnl: { color: prudexTheme.colors.positive },
+  negPnl: { color: prudexTheme.colors.negative },
+  result: { backgroundColor: prudexTheme.colors.surface, borderWidth: 1, borderColor: prudexTheme.colors.border, borderRadius: 12, padding: 12, gap: 6 },
+  resultTitle: { fontWeight: "700", color: prudexTheme.colors.text },
+  error: { color: prudexTheme.colors.negative, fontSize: 13 },
 });

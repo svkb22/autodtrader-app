@@ -10,6 +10,7 @@ import OAuthResultBanner from "@/components/OAuthResultBanner";
 import { ENABLE_LIVE_BROKER, ENABLE_MANUAL_ALPACA_CONNECT } from "@/config/env";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 import OnboardingLayout from "@/screens/onboarding/OnboardingLayout";
+import { prudexTheme } from "@/theme/prudex";
 import { mapOAuthResultToUIState, OAuthAction, OAuthBannerState, parseOAuthErrorFromUrl } from "@/utils/mapOAuthError";
 import { openExternalUrl } from "@/utils/openExternalUrl";
 
@@ -218,8 +219,8 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
     <OnboardingLayout
       step={3}
       totalSteps={7}
-      title="Connect your brokerage"
-      subtitle="Connect Alpaca with OAuth. We never store your password."
+      title="Connect execution venue"
+      subtitle="Connect Alpaca through a secure flow. Credentials are never stored."
       primaryLabel="Continue"
       onPrimary={() => {
         track("onboarding_step_completed", { step: "connect_broker" });
@@ -384,15 +385,15 @@ export default function ConnectBrokerOnboardingScreen({ navigation }: Props): Re
 const styles = StyleSheet.create({
   card: {
     borderRadius: 18,
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surface,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: prudexTheme.colors.border,
     padding: 16,
     gap: 10,
   },
   label: {
     fontSize: 13,
-    color: "#334155",
+    color: prudexTheme.colors.textMuted,
     fontWeight: "600",
   },
   toggleRow: {
@@ -404,60 +405,60 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: prudexTheme.colors.borderStrong,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: prudexTheme.colors.surfaceMuted,
   },
   modeButtonActive: {
-    backgroundColor: "#0f172a",
-    borderColor: "#0f172a",
+    backgroundColor: prudexTheme.colors.primary,
+    borderColor: prudexTheme.colors.primary,
   },
   modeText: {
     fontSize: 13,
-    color: "#334155",
+    color: prudexTheme.colors.textSubtle,
     fontWeight: "600",
   },
   modeTextActive: {
-    color: "white",
+    color: prudexTheme.colors.white,
   },
   connectButton: {
     minHeight: 48,
     borderRadius: 12,
-    backgroundColor: "#111827",
+    backgroundColor: prudexTheme.colors.primary,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
   },
   connectText: {
-    color: "white",
-    fontWeight: "600",
+    color: prudexTheme.colors.white,
+    fontWeight: "700",
   },
   helper: {
-    color: "#64748b",
+    color: prudexTheme.colors.textSubtle,
     fontSize: 12,
   },
   signupBlock: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
+    borderColor: prudexTheme.colors.border,
+    backgroundColor: prudexTheme.colors.surfaceMuted,
     padding: 10,
     gap: 4,
   },
-  signupTitle: { color: "#0f172a", fontSize: 14, fontWeight: "700" },
-  signupBody: { color: "#64748b", fontSize: 12, lineHeight: 17 },
-  signupLink: { color: "#0f172a", fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },
+  signupTitle: { color: prudexTheme.colors.text, fontSize: 14, fontWeight: "700" },
+  signupBody: { color: prudexTheme.colors.textSubtle, fontSize: 12, lineHeight: 17 },
+  signupLink: { color: prudexTheme.colors.primarySoft, fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },
   manualBlock: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
+    borderColor: prudexTheme.colors.border,
+    backgroundColor: prudexTheme.colors.surfaceMuted,
     padding: 10,
     gap: 8,
   },
   manualToggle: {
-    color: "#1e293b",
+    color: prudexTheme.colors.textMuted,
     fontSize: 13,
     fontWeight: "600",
     textDecorationLine: "underline",
@@ -466,7 +467,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   manualModeNote: {
-    color: "#334155",
+    color: prudexTheme.colors.textMuted,
     fontSize: 12,
     fontWeight: "600",
   },
@@ -474,10 +475,10 @@ const styles = StyleSheet.create({
     minHeight: 42,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: prudexTheme.colors.borderStrong,
     paddingHorizontal: 12,
-    backgroundColor: "white",
-    color: "#0f172a",
+    backgroundColor: prudexTheme.colors.surface,
+    color: prudexTheme.colors.text,
   },
   manualButtonsRow: {
     flexDirection: "row",
@@ -492,31 +493,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   manualConnectButton: {
-    backgroundColor: "#0f172a",
-    borderColor: "#0f172a",
+    backgroundColor: prudexTheme.colors.primary,
+    borderColor: prudexTheme.colors.primary,
   },
   manualCancelButton: {
-    backgroundColor: "white",
-    borderColor: "#cbd5e1",
+    backgroundColor: prudexTheme.colors.surface,
+    borderColor: prudexTheme.colors.borderStrong,
   },
   manualConnectText: {
-    color: "white",
+    color: prudexTheme.colors.white,
     fontWeight: "700",
   },
   manualCancelText: {
-    color: "#334155",
+    color: prudexTheme.colors.textMuted,
     fontWeight: "700",
   },
   manualButtonDisabled: {
     opacity: 0.7,
   },
   manualError: {
-    color: "#b91c1c",
+    color: prudexTheme.colors.negative,
     fontSize: 12,
     fontWeight: "600",
   },
   manualSuccess: {
-    color: "#166534",
+    color: prudexTheme.colors.positive,
     fontSize: 12,
     fontWeight: "700",
   },

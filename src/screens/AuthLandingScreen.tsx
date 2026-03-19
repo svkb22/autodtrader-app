@@ -5,6 +5,8 @@ import * as WebBrowser from "expo-web-browser";
 
 import { useAuth } from "@/auth/AuthContext";
 import { firebaseConfigReady } from "@/auth/firebase";
+import BrandLockup from "@/components/BrandLockup";
+import { prudexTheme, surfaceCard } from "@/theme/prudex";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -63,9 +65,12 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Systematic trading. Built for control.</Text>
-      <Text style={styles.subtitle}>Low-frequency setups. Disciplined execution. You approve every trade.</Text>
-      <Text style={styles.trust}>Secure OAuth authentication. Broker credentials are never stored.</Text>
+      <View style={styles.heroCard}>
+        <BrandLockup variant="hero" showTagline />
+        <Text style={styles.title}>Execute with discipline.</Text>
+        <Text style={styles.subtitle}>Structured setups. Risk-defined entries. You stay in control.</Text>
+        <Text style={styles.trust}>Secure broker connection. Credentials are never stored.</Text>
+      </View>
 
       {enableGoogleLogin ? (
         <Pressable
@@ -101,46 +106,54 @@ export default function AuthLandingScreen({ navigation }: Props): React.JSX.Elem
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: prudexTheme.colors.bg,
     justifyContent: "center",
-    padding: 20,
-    gap: 12,
+    padding: prudexTheme.spacing.lg,
+    gap: prudexTheme.spacing.sm,
+  },
+  heroCard: {
+    ...surfaceCard,
+    backgroundColor: prudexTheme.colors.surfaceElevated,
+    padding: prudexTheme.spacing.lg,
+    gap: prudexTheme.spacing.sm,
+    marginBottom: prudexTheme.spacing.sm,
   },
   title: {
-    fontSize: 30,
-    lineHeight: 38,
+    fontSize: prudexTheme.typography.hero,
+    lineHeight: 40,
     fontWeight: "700",
-    color: "#0f172a",
+    color: prudexTheme.colors.text,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#334155",
+    fontSize: prudexTheme.typography.bodyLg,
+    color: prudexTheme.colors.textMuted,
+    lineHeight: 22,
   },
   trust: {
-    fontSize: 12,
-    color: "#64748b",
+    fontSize: prudexTheme.typography.eyebrow,
+    color: prudexTheme.colors.textSubtle,
     marginBottom: 8,
   },
   googleButton: {
     minHeight: 48,
-    borderRadius: 12,
+    borderRadius: prudexTheme.radius.sm,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    backgroundColor: "white",
+    borderColor: prudexTheme.colors.borderStrong,
+    backgroundColor: prudexTheme.colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
   googleInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   googleLogo: { width: 18, height: 18 },
-  googleText: { color: "#0f172a", fontWeight: "600", fontSize: 15 },
+  googleText: { color: prudexTheme.colors.text, fontWeight: "600", fontSize: 15 },
   primaryButton: {
     minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: "#0f172a",
+    borderRadius: prudexTheme.radius.sm,
+    backgroundColor: prudexTheme.colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  primaryText: { color: "white", fontWeight: "600", fontSize: 15 },
-  error: { fontSize: 13, color: "#b91c1c", textAlign: "center" },
+  primaryText: { color: prudexTheme.colors.white, fontWeight: "700", fontSize: 15 },
+  error: { fontSize: 13, color: prudexTheme.colors.negative, textAlign: "center" },
   disabled: { opacity: 0.5 },
 });

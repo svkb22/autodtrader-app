@@ -1,10 +1,15 @@
 import React from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+
+import BrandLockup from "@/components/BrandLockup";
+import { prudexTheme } from "@/theme/prudex";
 
 export default function Loading(): React.JSX.Element {
   return (
     <View style={styles.wrap}>
-      <ActivityIndicator size="large" />
+      <BrandLockup variant="hero" showTagline />
+      <ActivityIndicator size="small" color={prudexTheme.colors.primarySoft} />
+      <Text style={styles.text}>Preparing system state...</Text>
     </View>
   );
 }
@@ -12,7 +17,15 @@ export default function Loading(): React.JSX.Element {
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
+    backgroundColor: prudexTheme.colors.bg,
     alignItems: "center",
     justifyContent: "center",
+    gap: prudexTheme.spacing.md,
+    padding: prudexTheme.spacing.lg,
+  },
+  text: {
+    color: prudexTheme.colors.textSubtle,
+    fontSize: prudexTheme.typography.body,
+    fontWeight: "600",
   },
 });
