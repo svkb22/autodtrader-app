@@ -22,10 +22,11 @@
 - Mid Gray: `#7E8A93`
 
 ## Logo usage
-- `assets/branding/prudex-symbol-512.png`: app symbol / compact brand mark
-- `assets/branding/prudex-icon-1024.png`: app icon source
-- `public/prudex-logo.svg`: web / docs asset
-- `public/favicon.png`: favicon source
+- `assets/branding/prudex-full-lockup-primary.png`: approved full lockup for hero/auth surfaces
+- `assets/branding/prudex-lockup-dark.png`: approved dark lockup for headers and dense brand areas
+- `assets/branding/prudex-symbol-exact-512.png`: approved compact mark
+- `assets/branding/prudex-symbol-exact-1024.png`: app icon source
+- `public/favicon.png`: favicon source from approved exact symbol export
 
 ## Copy principles
 - Prefer calm, precise operational language
@@ -36,3 +37,4 @@
 - Generate native splash variants and adaptive icon exports if design needs tighter cropping
 - Update any backend-generated email or web copy that still references legacy naming
 - Consider migrating OAuth redirect scheme from `autodtrader://` to `prudex://` in a coordinated backend/frontend change
+- If vector output is required later, recreate the approved raster direction as SVG/AI-quality artwork

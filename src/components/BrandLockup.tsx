@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, ImageStyle, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Image, ImageStyle, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 
 import { prudexTheme } from "@/theme/prudex";
 
@@ -10,7 +10,9 @@ type Props = {
   symbolStyle?: StyleProp<ImageStyle>;
 };
 
-const symbol = require("@/../assets/branding/prudex-symbol-512.png");
+const fullLockupPrimary = require("@/../assets/branding/prudex-full-lockup-primary.png");
+const darkLockup = require("@/../assets/branding/prudex-lockup-dark.png");
+const symbol = require("@/../assets/branding/prudex-symbol-exact-512.png");
 
 export default function BrandLockup({
   variant = "hero",
@@ -20,23 +22,28 @@ export default function BrandLockup({
 }: Props): React.JSX.Element {
   const isHero = variant === "hero";
   const isCompact = variant === "compact";
+  const usesLockup = !isCompact;
 
   return (
     <View style={[styles.row, isHero && styles.rowHero, containerStyle]}>
-      <Image
-        source={symbol}
-        resizeMode="contain"
-        style={[
-          styles.symbol,
-          isHero && styles.symbolHero,
-          isCompact && styles.symbolCompact,
-          symbolStyle,
-        ]}
-      />
-      <View style={styles.copy}>
-        <Text style={[styles.wordmark, isHero && styles.wordmarkHero, isCompact && styles.wordmarkCompact]}>PRUDEX</Text>
-        {showTagline ? <Text style={styles.tagline}>Execute with discipline.</Text> : null}
-      </View>
+      {usesLockup ? (
+        <Image
+          source={isHero ? fullLockupPrimary : darkLockup}
+          resizeMode="contain"
+          style={[styles.lockup, isHero && styles.lockupHero]}
+        />
+      ) : (
+        <Image
+          source={symbol}
+          resizeMode="contain"
+          style={[
+            styles.symbol,
+            isHero && styles.symbolHero,
+            isCompact && styles.symbolCompact,
+            symbolStyle,
+          ]}
+        />
+      )}
     </View>
   );
 }
@@ -49,7 +56,14 @@ const styles = StyleSheet.create({
   },
   rowHero: {
     alignItems: "flex-start",
-    gap: prudexTheme.spacing.md,
+  },
+  lockup: {
+    width: 176,
+    height: 60,
+  },
+  lockupHero: {
+    width: 250,
+    height: 70,
   },
   symbol: {
     width: 32,
@@ -62,27 +76,5 @@ const styles = StyleSheet.create({
   symbolCompact: {
     width: 22,
     height: 22,
-  },
-  copy: {
-    gap: 2,
-  },
-  wordmark: {
-    color: prudexTheme.colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-    letterSpacing: 2.4,
-  },
-  wordmarkHero: {
-    fontSize: 26,
-    letterSpacing: 3.4,
-  },
-  wordmarkCompact: {
-    fontSize: 14,
-    letterSpacing: 2,
-  },
-  tagline: {
-    color: prudexTheme.colors.textSubtle,
-    fontSize: 13,
-    fontWeight: "600",
   },
 });
