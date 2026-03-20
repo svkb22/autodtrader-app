@@ -141,7 +141,7 @@ export default function LoginScreen(): React.JSX.Element {
     <View style={styles.container}>
       <BrandBackdrop />
       <BrandLockup variant="header" />
-      <Text style={styles.title}>Prudex access</Text>
+      <Text style={styles.title}>Falcon access</Text>
       <Text style={styles.subtitle}>Legacy authentication screen for development and recovery flows.</Text>
       <Pressable
         style={[styles.googleButton, (!request || busy || !googleConfigured) && styles.disabled]}

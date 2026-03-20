@@ -1,6 +1,6 @@
-# AutoDTrader iOS Client (Expo)
+# Falcon Client (Expo)
 
-iOS-first React Native client for the Auto Day-Trader MVP.
+React Native client for Falcon.
 
 ## Auth in this build
 

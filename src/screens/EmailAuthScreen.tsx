@@ -65,7 +65,7 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
         <BrandLockup variant="header" />
       </View>
       <Text style={styles.title}>Secure access</Text>
-      <Text style={styles.subtitle}>Use email credentials to access your Prudex workspace.</Text>
+      <Text style={styles.subtitle}>Use email credentials to access your Falcon workspace.</Text>
 
       <View style={styles.segment}>
         <Pressable

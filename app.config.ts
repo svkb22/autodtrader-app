@@ -1,7 +1,7 @@
 import { ExpoConfig } from "expo/config";
 
 const config: ExpoConfig = {
-  name: "Prudex",
+  name: "Falcon",
   slug: "prudex",
   scheme: "autodtrader",
   version: "0.1.0",
@@ -27,7 +27,7 @@ const config: ExpoConfig = {
   plugins: ["expo-notifications"],
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
-    brandName: "Prudex",
+    brandName: "Falcon",
     eas: {
       projectId: "8da9e7f6-1111-415b-a1b7-79644152cb32",
     },

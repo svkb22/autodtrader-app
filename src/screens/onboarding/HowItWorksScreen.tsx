@@ -27,7 +27,7 @@ export default function HowItWorksScreen({ navigation }: Props): React.JSX.Eleme
       step={2}
       totalSteps={7}
       title="System workflow"
-      subtitle="Prudex routes setups through one clear execution process."
+      subtitle="Falcon routes setups through one clear execution process."
       primaryLabel="Continue"
       onPrimary={() => {
         track("onboarding_step_completed", { step: "how_it_works" });

@@ -19,8 +19,8 @@ export default function WelcomeScreen({ navigation }: Props): React.JSX.Element 
     <OnboardingLayout
       step={1}
       totalSteps={7}
-      title="Welcome to Prudex"
-      subtitle="Prudex is a disciplined execution system for structured market participation."
+      title="Welcome to Falcon"
+      subtitle="Falcon is a disciplined execution system for structured market participation."
       primaryLabel="Continue"
       onPrimary={() => {
         track("onboarding_step_completed", { step: "welcome" });
