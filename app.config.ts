@@ -6,9 +6,9 @@ const config: ExpoConfig = {
   scheme: "autodtrader",
   version: "0.1.0",
   orientation: "portrait",
-  icon: "./assets/branding/prudex-symbol-exact-1024.png",
+  icon: "./assets/branding/falcon-symbol-1024.png",
   splash: {
-    image: "./assets/branding/prudex-symbol-exact-512.png",
+    image: "./assets/branding/falcon-symbol-512.png",
     resizeMode: "contain",
     backgroundColor: "#0B1F2A",
   },

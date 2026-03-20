@@ -4,7 +4,7 @@ import { Image, StyleSheet, View } from "react-native";
 import { prudexTheme } from "@/theme/prudex";
 
 const glow = require("@/../assets/branding/prudex-gradient-flow.png");
-const symbol = require("@/../assets/branding/prudex-symbol-exact-512.png");
+const symbol = require("@/../assets/branding/falcon-symbol-512.png");
 
 export default function BrandBackdrop(): React.JSX.Element {
   return (
@@ -57,4 +57,3 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(3, 8, 12, 0.22)",
   },
 });
-

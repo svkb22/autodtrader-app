@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, ImageStyle, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Image, ImageStyle, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 
 import { prudexTheme } from "@/theme/prudex";
 
@@ -10,9 +10,8 @@ type Props = {
   symbolStyle?: StyleProp<ImageStyle>;
 };
 
-const symbol = require("@/../assets/branding/prudex-symbol-exact-512.png");
-const BRAND_NAME = "FALCON";
-const TAGLINE = "EXECUTE WITH DISCIPLINE.";
+const fullLockup = require("@/../assets/branding/falcon-logo-full.png");
+const symbol = require("@/../assets/branding/falcon-symbol-512.png");
 
 export default function BrandLockup({
   variant = "hero",
@@ -22,25 +21,20 @@ export default function BrandLockup({
 }: Props): React.JSX.Element {
   const isHero = variant === "hero";
   const isCompact = variant === "compact";
+  void showTagline;
 
   return (
     <View style={[styles.row, isHero && styles.rowHero, containerStyle]}>
       <Image
-        source={symbol}
+        source={isCompact ? symbol : fullLockup}
         resizeMode="contain"
         style={[
-          styles.symbol,
-          isHero && styles.symbolHero,
+          isCompact ? styles.symbol : styles.lockup,
+          isHero && !isCompact && styles.lockupHero,
           isCompact && styles.symbolCompact,
-          symbolStyle,
+          isCompact && symbolStyle,
         ]}
       />
-      {!isCompact ? (
-        <View style={styles.wordmarkBlock}>
-          <Text style={[styles.wordmark, isHero && styles.wordmarkHero]}>{BRAND_NAME}</Text>
-          {showTagline ? <Text style={styles.tagline}>{TAGLINE}</Text> : null}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -54,35 +48,20 @@ const styles = StyleSheet.create({
   rowHero: {
     alignItems: "flex-start",
   },
+  lockup: {
+    width: 208,
+    height: 58,
+  },
+  lockupHero: {
+    width: 280,
+    height: 78,
+  },
   symbol: {
     width: 34,
     height: 34,
   },
-  symbolHero: {
-    width: 68,
-    height: 68,
-  },
   symbolCompact: {
     width: 22,
     height: 22,
-  },
-  wordmarkBlock: {
-    gap: 2,
-  },
-  wordmark: {
-    color: prudexTheme.colors.text,
-    fontSize: 28,
-    fontWeight: "900",
-    letterSpacing: 3.2,
-  },
-  wordmarkHero: {
-    fontSize: 40,
-    letterSpacing: 4.4,
-  },
-  tagline: {
-    color: prudexTheme.colors.textSubtle,
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 2.4,
   },
 });
