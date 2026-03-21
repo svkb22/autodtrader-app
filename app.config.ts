@@ -1,14 +1,14 @@
 import { ExpoConfig } from "expo/config";
 
 const config: ExpoConfig = {
-  name: "Falcon",
-  slug: "prudex",
+  name: "Falcun",
+  slug: "autodtrader",
   scheme: "autodtrader",
   version: "0.1.0",
   orientation: "portrait",
-  icon: "./assets/branding/falcon-symbol-1024.png",
+  icon: "./assets/branding/falcun-mark-1024.png",
   splash: {
-    image: "./assets/branding/falcon-symbol-512.png",
+    image: "./assets/branding/falcun-mark-512.png",
     resizeMode: "contain",
     backgroundColor: "#0B1F2A",
   },
@@ -18,7 +18,7 @@ const config: ExpoConfig = {
     themeColor: "#0B1F2A",
   },
   ios: {
-    bundleIdentifier: "com.yourorg.autodtrader",
+    bundleIdentifier: "com.falcun.app",
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -27,7 +27,7 @@ const config: ExpoConfig = {
   plugins: ["expo-notifications"],
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
-    brandName: "Falcon",
+    brandName: "Falcun",
     eas: {
       projectId: "8da9e7f6-1111-415b-a1b7-79644152cb32",
     },

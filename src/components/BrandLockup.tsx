@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, Image, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 
 import { prudexTheme } from "@/theme/prudex";
 
@@ -10,7 +10,7 @@ type Props = {
   containerStyle?: StyleProp<ViewStyle>;
 };
 
-const LETTERS = "FALCON".split("");
+const mark = require("@/../assets/branding/falcun-mark-1024.png");
 
 export default function BrandLockup({
   variant = "hero",
@@ -20,121 +20,71 @@ export default function BrandLockup({
 }: Props): React.JSX.Element {
   const isHero = variant === "hero";
   const isCompact = variant === "compact";
-  const letterValues = useRef(LETTERS.map(() => new Animated.Value(animate ? 0 : 1))).current;
-  const taglineValue = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const opacity = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const translateY = useRef(new Animated.Value(animate ? 8 : 0)).current;
 
   useEffect(() => {
     if (!animate) {
-      letterValues.forEach((value) => value.setValue(1));
-      taglineValue.setValue(1);
+      opacity.setValue(1);
+      translateY.setValue(0);
       return;
     }
 
-    const sequence = Animated.sequence([
-      Animated.stagger(
-        70,
-        letterValues.map((value) =>
-          Animated.timing(value, {
-            toValue: 1,
-            duration: 260,
-            useNativeDriver: false,
-          }),
-        ),
-      ),
-      Animated.timing(taglineValue, {
+    Animated.parallel([
+      Animated.timing(opacity, {
         toValue: 1,
-        duration: 240,
-        useNativeDriver: false,
+        duration: 420,
+        useNativeDriver: true,
       }),
-    ]);
-
-    sequence.start();
-  }, [animate, letterValues, taglineValue]);
-
-  const renderedLetters = useMemo(
-    () =>
-      LETTERS.map((letter, index) => (
-        <Animated.Text
-          key={`${letter}-${index}`}
-          style={[
-            styles.wordmark,
-            isHero && styles.wordmarkHero,
-            isCompact && styles.wordmarkCompact,
-            animate
-              ? {
-                  color: letterValues[index].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [prudexTheme.colors.textSubtle, prudexTheme.colors.text],
-                  }),
-                  opacity: letterValues[index].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.32, 1],
-                  }),
-                }
-              : null,
-          ]}
-        >
-          {letter}
-        </Animated.Text>
-      )),
-    [animate, isCompact, isHero, letterValues],
-  );
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 420,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [animate, opacity, translateY]);
 
   return (
-    <View style={[styles.stack, isHero && styles.stackHero, containerStyle]}>
-      <View style={styles.wordmarkRow}>{renderedLetters}</View>
-      {showTagline && !isCompact ? (
-        <Animated.Text
-          style={[
-            styles.tagline,
-            animate
-              ? {
-                  opacity: taglineValue.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 1],
-                  }),
-                }
-              : null,
-          ]}
-        >
-          EXECUTE WITH DISCIPLINE.
-        </Animated.Text>
-      ) : null}
-    </View>
+    <Animated.View
+      style={[
+        styles.stack,
+        isHero && styles.stackHero,
+        containerStyle,
+        animate ? { opacity, transform: [{ translateY }] } : null,
+      ]}
+    >
+      <Image source={mark} resizeMode="contain" style={[styles.mark, isHero && styles.markHero, isCompact && styles.markCompact]} />
+      {showTagline && !isCompact ? <Text style={styles.tagline}>EXECUTE WITH DISCIPLINE.</Text> : null}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   stack: {
     alignItems: "flex-start",
-    gap: 4,
+    gap: 10,
   },
   stackHero: {
-    alignItems: "flex-start",
-  },
-  wordmarkRow: {
-    flexDirection: "row",
     alignItems: "center",
   },
-  wordmark: {
-    color: prudexTheme.colors.text,
-    fontSize: 30,
-    fontWeight: "900",
-    letterSpacing: 3.6,
+  mark: {
+    width: 126,
+    height: 126,
   },
-  wordmarkHero: {
-    fontSize: 42,
-    letterSpacing: 4.8,
+  markHero: {
+    width: 210,
+    height: 210,
   },
-  wordmarkCompact: {
-    fontSize: 16,
-    letterSpacing: 2.2,
+  markCompact: {
+    width: 48,
+    height: 48,
   },
   tagline: {
     color: prudexTheme.colors.textSubtle,
     fontSize: 11,
     fontWeight: "600",
     letterSpacing: 2.4,
-    paddingLeft: 1,
+    textAlign: "center",
+    alignSelf: "center",
   },
 });
