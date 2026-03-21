@@ -26,6 +26,7 @@ const ALPACA_SIGNUP_URL = "https://app.alpaca.markets/signup";
 
 if (
   typeof window !== "undefined" &&
+  typeof window.location?.pathname === "string" &&
   window.location.pathname.includes("broker/callback")
 ) {
   WebBrowser.maybeCompleteAuthSession();
