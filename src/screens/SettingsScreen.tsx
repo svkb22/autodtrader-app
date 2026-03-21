@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NavigationProp, ParamListBase, useNavigation } from "@react-navigation/native";
 import Constants from "expo-constants";
 
@@ -60,7 +60,11 @@ export default function SettingsScreen(): React.JSX.Element {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       <BrandBackdrop />
 
       <View style={styles.brandCard}>
@@ -95,7 +99,7 @@ export default function SettingsScreen(): React.JSX.Element {
       <Pressable style={[styles.logoutButton, loggingOut && styles.disabled]} onPress={onLogout} disabled={loggingOut}>
         <Text style={styles.logoutText}>{loggingOut ? "Logging out..." : "Log Out"}</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -103,8 +107,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: prudexTheme.colors.bg,
+  },
+  content: {
     padding: 16,
     gap: 12,
+    paddingBottom: 40,
   },
   brandCard: {
     ...surfaceCard,

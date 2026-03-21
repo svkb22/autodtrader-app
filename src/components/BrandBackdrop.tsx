@@ -4,7 +4,6 @@ import { Image, StyleSheet, View } from "react-native";
 import { prudexTheme } from "@/theme/prudex";
 
 const glow = require("@/../assets/branding/prudex-gradient-flow.png");
-const symbol = require("@/../assets/branding/falcon-symbol-512.png");
 
 export default function BrandBackdrop(): React.JSX.Element {
   return (
@@ -12,7 +11,6 @@ export default function BrandBackdrop(): React.JSX.Element {
       <View style={styles.base} />
       <Image source={glow} resizeMode="stretch" style={styles.glowTop} />
       <Image source={glow} resizeMode="stretch" style={styles.glowBottom} />
-      <Image source={symbol} resizeMode="contain" style={styles.symbolGhost} />
       <View style={styles.vignette} />
     </View>
   );
@@ -43,14 +41,6 @@ const styles = StyleSheet.create({
     height: 140,
     opacity: 0.12,
     transform: [{ rotate: "180deg" }],
-  },
-  symbolGhost: {
-    position: "absolute",
-    right: -40,
-    top: 120,
-    width: 220,
-    height: 220,
-    opacity: 0.05,
   },
   vignette: {
     ...StyleSheet.absoluteFillObject,
