@@ -18,7 +18,6 @@ import {
 } from "@/api/client";
 import { ActivityItem, EquityCurvePoint, ExecutionRecentItem, Proposal, ProposalDecisionResult, ProposalHistoryItem, RiskProfile, TradingWindowStatus } from "@/api/types";
 import BrandBackdrop from "@/components/BrandBackdrop";
-import BrandLockup from "@/components/BrandLockup";
 import Countdown from "@/components/Countdown";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
 import { prudexTheme } from "@/theme/prudex";
@@ -392,7 +391,6 @@ export default function HomeScreen(_props: Props): React.JSX.Element {
     >
       <BrandBackdrop />
       <View style={styles.brandRow}>
-        <BrandLockup variant="header" showTagline />
       </View>
       <View style={styles.statusStrip}>
         <View style={styles.statusStripLeft}>

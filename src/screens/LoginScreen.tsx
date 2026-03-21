@@ -7,7 +7,6 @@ import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { authMagicLink, toApiError } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import BrandBackdrop from "@/components/BrandBackdrop";
-import BrandLockup from "@/components/BrandLockup";
 import { firebaseAuth, firebaseConfigReady } from "@/auth/firebaseClient";
 import { prudexTheme } from "@/theme/prudex";
 
@@ -140,7 +139,6 @@ export default function LoginScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <BrandBackdrop />
-      <BrandLockup variant="header" />
       <Text style={styles.title}>Falcon access</Text>
       <Text style={styles.subtitle}>Legacy authentication screen for development and recovery flows.</Text>
       <Pressable

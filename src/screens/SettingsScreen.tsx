@@ -5,7 +5,6 @@ import Constants from "expo-constants";
 
 import { useAuth } from "@/auth/AuthContext";
 import BrandBackdrop from "@/components/BrandBackdrop";
-import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme, surfaceCard } from "@/theme/prudex";
 
 type SettingsItemProps = {
@@ -68,7 +67,7 @@ export default function SettingsScreen(): React.JSX.Element {
       <BrandBackdrop />
 
       <View style={styles.brandCard}>
-        <BrandLockup variant="header" showTagline />
+        <Text style={styles.brandTitle}>Settings</Text>
         <Text style={styles.brandBody}>System controls for venue access, execution posture, and risk guardrails.</Text>
       </View>
 
@@ -124,6 +123,12 @@ const styles = StyleSheet.create({
     color: prudexTheme.colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
+  },
+  brandTitle: {
+    color: prudexTheme.colors.text,
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: 0.4,
   },
   sectionLabel: {
     color: prudexTheme.colors.textSubtle,

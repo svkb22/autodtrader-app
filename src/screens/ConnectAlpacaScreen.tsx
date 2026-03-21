@@ -8,7 +8,6 @@ import { toApiError } from "@/api/client";
 import { BrokerStatusResponse, finishAlpacaOAuth, getBrokerStatus, startAlpacaOAuth } from "@/api/broker";
 import { acceptStocksAgreement } from "@/api/agreements";
 import BrandBackdrop from "@/components/BrandBackdrop";
-import BrandLockup from "@/components/BrandLockup";
 import OAuthResultBanner from "@/components/OAuthResultBanner";
 import { ENABLE_LIVE_BROKER } from "@/config/env";
 import { getStocksAgreementState, setStocksAgreementAccepted } from "@/storage/agreements";
@@ -192,7 +191,6 @@ export default function ConnectAlpacaScreen({ navigation, route }: Props): React
   return (
     <View style={styles.container}>
       <BrandBackdrop />
-      <BrandLockup variant="header" />
       <Text style={styles.title}>Connect Alpaca</Text>
       <Text style={styles.subtitle}>Connect the execution venue securely. Credentials are never stored.</Text>
 

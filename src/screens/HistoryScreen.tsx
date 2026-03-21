@@ -6,7 +6,6 @@ import { getActivity } from "@/api/activity";
 import { getCurrentProposal, getProposalsHistory } from "@/api/client";
 import { ActivityItem, ActivityRange, Proposal } from "@/api/types";
 import BrandBackdrop from "@/components/BrandBackdrop";
-import BrandLockup from "@/components/BrandLockup";
 import ErrorState from "@/components/ErrorState";
 import { toUnifiedFromActivity, toUnifiedFromPendingProposal, toUnifiedFromProposalHistory, UnifiedActivityItem } from "@/domain/activityTypes";
 import { getActiveBrokerMode } from "@/storage/brokerMode";
@@ -208,7 +207,6 @@ export default function HistoryScreen(): React.JSX.Element {
         ListHeaderComponent={
           <View style={styles.headerWrap}>
             <BrandBackdrop />
-            <BrandLockup variant="header" />
             <View style={styles.titleRow}>
               <Text style={styles.title}>Execution history</Text>
               <Text style={styles.modeChip}>{`Alpaca • ${activeMode === "live" ? "Live" : "Paper"}`}</Text>

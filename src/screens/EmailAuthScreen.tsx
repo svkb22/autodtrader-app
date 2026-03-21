@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "@/auth/AuthContext";
 import BrandBackdrop from "@/components/BrandBackdrop";
-import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme } from "@/theme/prudex";
 
 type Props = {
@@ -61,9 +60,6 @@ export default function EmailAuthScreen({ navigation }: Props): React.JSX.Elemen
   return (
     <View style={styles.container}>
       <BrandBackdrop />
-      <View style={styles.brandWrap}>
-        <BrandLockup variant="header" />
-      </View>
       <Text style={styles.title}>Secure access</Text>
       <Text style={styles.subtitle}>Use email credentials to access your Falcon workspace.</Text>
 

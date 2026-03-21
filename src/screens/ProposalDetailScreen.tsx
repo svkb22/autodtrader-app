@@ -5,7 +5,6 @@ import { getFinnhubCompanyContext } from "@/api/finnhub";
 import { getProposalsHistory, toApiError } from "@/api/client";
 import { ProposalHistoryItem } from "@/api/types";
 import BrandBackdrop from "@/components/BrandBackdrop";
-import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme } from "@/theme/prudex";
 import { dateTime, signedPct, usd, usdCompact } from "@/utils/format";
 
@@ -51,7 +50,6 @@ export default function ProposalDetailScreen({ route }: Props): React.JSX.Elemen
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <BrandBackdrop />
-      <BrandLockup variant="header" />
       <Text style={styles.title}>{item.side.toUpperCase()} {item.symbol}</Text>
       <Text style={styles.meta}>Status: {item.status}</Text>
       <Text style={styles.meta}>Setup quality: {item.strength}</Text>

@@ -3,7 +3,6 @@ import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "rea
 
 import { getRisk, toApiError, updateRisk } from "@/api/client";
 import BrandBackdrop from "@/components/BrandBackdrop";
-import BrandLockup from "@/components/BrandLockup";
 import { prudexTheme } from "@/theme/prudex";
 
 type Props = {
@@ -63,7 +62,6 @@ export default function RiskSettingsScreen({ navigation }: Props): React.JSX.Ele
   return (
     <View style={styles.container}>
       <BrandBackdrop />
-      <BrandLockup variant="header" />
       <View style={styles.labelRow}>
         <Text style={styles.label}>Max Daily Loss (USD)</Text>
         <Pressable onPress={() => toggleTip("maxDailyLoss")}><Text style={styles.tipIcon}>i</Text></Pressable>

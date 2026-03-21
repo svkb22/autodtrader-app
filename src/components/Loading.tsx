@@ -9,7 +9,7 @@ export default function Loading(): React.JSX.Element {
   return (
     <View style={styles.wrap}>
       <BrandBackdrop />
-      <BrandLockup variant="hero" showTagline />
+      <BrandLockup variant="hero" showTagline animate />
       <ActivityIndicator size="small" color={prudexTheme.colors.primarySoft} />
       <Text style={styles.text}>Preparing system state...</Text>
     </View>
